@@ -88,8 +88,7 @@ To try a build, copy `main.js`, `manifest.json` and `styles.css` into a vault's 
 
 1. Run `npm version patch` (or `minor` / `major`). This updates `manifest.json`, `package.json` and `versions.json`, commits, and tags the new version without a `v`, as Obsidian requires.
 2. Run `git push --follow-tags`.
-3. Run `npm run build`.
-4. On GitHub, create a release for the new tag and attach `main.js`, `manifest.json` and `styles.css`.
+3. The Release workflow builds the plugin and publishes a GitHub release for the tag with `main.js`, `manifest.json` and `styles.css`.
 
 ## License
 
