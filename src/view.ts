@@ -11,9 +11,20 @@ import {
 	type HoverPopover,
 	type TFile,
 } from "obsidian";
-import { findBacklinkSources, loadExcerpts, mentionCount, resolvesTo, type BacklinkSource } from "./backlink-index";
-import type { Excerpt, Mention } from "./excerpt";
+import {
+	byRecency,
+	findBacklinkSources,
+	findUnlinked,
+	isExcluded,
+	loadExcerpts,
+	mentionCount,
+	resolvesTo,
+	scanUnlinked,
+	type BacklinkSource,
+} from "./backlink-index";
+import { UNLINKED_CLASS, type Excerpt, type Mention } from "./excerpt";
 import { formatAge, plural, toggleTask } from "./format";
+import { linkMentions } from "./link-mention";
 import type BetterBacklinksPlugin from "./main";
 import { openMention, openProperty } from "./navigate";
 import { propertyRows } from "./properties";
@@ -30,6 +41,16 @@ export class BacklinksSection extends Component implements HoverParent {
 	private readonly toggleAllEl: HTMLElement;
 	private readonly cardsEl: HTMLElement;
 	private readonly cards = new Map<string, Card>();
+	private readonly unlinkedGroupEl: HTMLElement;
+	private readonly unlinkedCountEl: HTMLElement;
+	private readonly unlinkedCardsEl: HTMLElement;
+	private readonly unlinkedCards = new Map<string, Card>();
+	private linkedSources: BacklinkSource[] = [];
+	/** Unlinked mentions found so far, by source path; filled by the scan and kept fresh per note. */
+	private readonly unlinkedSources = new Map<string, BacklinkSource>();
+	/** What the last unlinked scan was for; a change (note, name, settings) starts a new one. */
+	private scanKey = "";
+	private scanToken = 0;
 	private readonly resizeObserver: ResizeObserver;
 	private readonly modeObserver: MutationObserver;
 	private target: TFile | null = null;
@@ -51,6 +72,12 @@ export class BacklinksSection extends Component implements HoverParent {
 		this.countEl = headerEl.createDiv({ cls: "better-backlinks-count" });
 		this.toggleAllEl = headerEl.createEl("button", { cls: "better-backlinks-toggle-all" });
 		this.cardsEl = panelEl.createDiv({ cls: "better-backlinks-cards" });
+		this.unlinkedGroupEl = panelEl.createDiv({ cls: "better-backlinks-group" });
+		this.unlinkedGroupEl.hide();
+		const groupHeaderEl = this.unlinkedGroupEl.createDiv({ cls: "better-backlinks-header" });
+		groupHeaderEl.createDiv({ cls: "better-backlinks-title", text: "Unlinked mentions" });
+		this.unlinkedCountEl = groupHeaderEl.createDiv({ cls: "better-backlinks-count" });
+		this.unlinkedCardsEl = this.unlinkedGroupEl.createDiv({ cls: "better-backlinks-cards" });
 		// Measuring changes the observed elements' size, so defer it a frame to
 		// stay out of the observer's own loop.
 		this.resizeObserver = new ResizeObserver(() => this.scheduleMeasure());
@@ -73,6 +100,7 @@ export class BacklinksSection extends Component implements HoverParent {
 	}
 
 	override onunload() {
+		this.scanToken++;
 		cancelAnimationFrame(this.mountRetryFrame);
 		cancelAnimationFrame(this.measureFrame);
 		this.modeObserver.disconnect();
@@ -106,6 +134,7 @@ export class BacklinksSection extends Component implements HoverParent {
 		if (file !== this.target) {
 			this.clearCards();
 			this.target = file;
+			this.linkedSources = [];
 		}
 		this.refresh();
 	}
@@ -121,7 +150,56 @@ export class BacklinksSection extends Component implements HoverParent {
 			includePropertyLinks,
 			includeTitleMatches,
 		});
-		const shown = sources.length > 0;
+		this.linkedSources = sources;
+		this.startUnlinkedScan(target);
+		this.render();
+	}
+
+	/** Re-checks one note for unlinked mentions after it changed or was created. */
+	async recheckUnlinked(file: TFile) {
+		const target = this.target;
+		const { showUnlinkedMentions, excludedFolders } = this.plugin.settings;
+		if (!target || !showUnlinkedMentions || file === target || file.extension !== "md") return;
+		const source = isExcluded(file.path, excludedFolders) ? null : await findUnlinked(this.app, file, target);
+		if (target !== this.target) return;
+		if (source) this.unlinkedSources.set(file.path, source);
+		else if (!this.unlinkedSources.delete(file.path)) return;
+		this.render();
+	}
+
+	/** Drops a note that was deleted or renamed away from the unlinked group. */
+	forgetUnlinked(path: string) {
+		if (this.unlinkedSources.delete(path)) this.render();
+	}
+
+	private startUnlinkedScan(target: TFile) {
+		const { showUnlinkedMentions, excludedFolders } = this.plugin.settings;
+		const key = showUnlinkedMentions ? [target.path, target.basename, ...excludedFolders].join("\n") : "";
+		if (key === this.scanKey) return;
+		this.scanKey = key;
+		const token = ++this.scanToken;
+		this.unlinkedSources.clear();
+		if (!showUnlinkedMentions) return;
+		void scanUnlinked(
+			this.app,
+			target,
+			excludedFolders,
+			(found) => {
+				for (const source of found) this.unlinkedSources.set(source.file.path, source);
+				if (found.length > 0) this.render();
+			},
+			() => token !== this.scanToken,
+		);
+	}
+
+	/** Shows the linked cards and, below them, the unlinked-mention cards. */
+	private render() {
+		const target = this.target;
+		if (!target || !this.rootEl.isConnected) return;
+		const linked = this.linkedSources;
+		const unlinked = [...this.unlinkedSources.values()].sort(byRecency);
+
+		const shown = linked.length > 0 || unlinked.length > 0;
 		// Obsidian's scroll-past-end padding would sit between the note and the panel.
 		this.view.contentEl.toggleClass("better-backlinks-shown", shown);
 		if (!shown) {
@@ -130,38 +208,50 @@ export class BacklinksSection extends Component implements HoverParent {
 			return;
 		}
 		this.rootEl.show();
-		this.countEl.setText(plural(sources.length, "note"));
+		this.countEl.toggle(linked.length > 0);
+		this.countEl.setText(plural(linked.length, "note"));
+		this.syncCards(this.cards, this.cardsEl, linked, linked.length <= this.plugin.settings.expandUpTo);
 
+		this.unlinkedGroupEl.toggle(unlinked.length > 0);
+		this.unlinkedCountEl.setText(plural(unlinked.length, "note"));
+		// Unlinked mentions are suggestions, so their cards start collapsed.
+		this.syncCards(this.unlinkedCards, this.unlinkedCardsEl, unlinked, false);
+
+		this.updateToggleAll();
+		this.measure();
+	}
+
+	/** Brings one group's cards in line with `sources`: adds, updates, reorders and removes. */
+	private syncCards(cards: Map<string, Card>, containerEl: HTMLElement, sources: BacklinkSource[], expandByDefault: boolean) {
+		const target = this.target;
+		if (!target) return;
 		const seen = new Set<string>();
 		sources.forEach((source, index) => {
 			const path = source.file.path;
 			seen.add(path);
-			let card = this.cards.get(path);
+			let card = cards.get(path);
 			if (!card) {
-				const collapsed = this.plugin.getCollapsed(target.path, path);
-				const expanded = collapsed === undefined ? sources.length <= this.plugin.settings.expandUpTo : !collapsed;
-				card = this.addChild(new Card(this, source, expanded));
-				this.cards.set(path, card);
+				const collapsed = this.plugin.getCollapsed(target.path, collapseId(source));
+				card = this.addChild(new Card(this, source, collapsed === undefined ? expandByDefault : !collapsed));
+				cards.set(path, card);
 			} else {
 				card.update(source);
 			}
 			// Keep DOM order in step with the sort order.
-			if (this.cardsEl.children[index] !== card.el) this.cardsEl.insertBefore(card.el, this.cardsEl.children[index] ?? null);
+			if (containerEl.children[index] !== card.el) containerEl.insertBefore(card.el, containerEl.children[index] ?? null);
 		});
-		for (const [path, card] of this.cards) {
+		for (const [path, card] of cards) {
 			if (seen.has(path)) continue;
 			this.removeChild(card);
-			this.cards.delete(path);
+			cards.delete(path);
 		}
-		this.updateToggleAll();
-		this.measure();
 	}
 
 	/** Applies stored collapse state, e.g. after the same note's cards changed in another pane. */
 	syncCollapsed() {
 		if (!this.target) return;
-		for (const card of this.cards.values()) {
-			const collapsed = this.plugin.getCollapsed(this.target.path, card.source.file.path);
+		for (const card of [...this.cards.values(), ...this.unlinkedCards.values()]) {
+			const collapsed = this.plugin.getCollapsed(this.target.path, collapseId(card.source));
 			if (collapsed !== undefined) card.setExpanded(!collapsed);
 		}
 		this.updateToggleAll();
@@ -178,7 +268,7 @@ export class BacklinksSection extends Component implements HoverParent {
 	}
 
 	onCardToggled(card: Card) {
-		if (this.target) this.plugin.setCollapsed(this.target.path, [[card.source.file.path, !card.expanded]]);
+		if (this.target) this.plugin.setCollapsed(this.target.path, [[collapseId(card.source), !card.expanded]]);
 	}
 
 	private mount(mode: Mode): boolean {
@@ -221,9 +311,11 @@ export class BacklinksSection extends Component implements HoverParent {
 	}
 
 	private clearCards() {
-		for (const card of this.cards.values()) this.removeChild(card);
+		for (const card of [...this.cards.values(), ...this.unlinkedCards.values()]) this.removeChild(card);
 		this.cards.clear();
+		this.unlinkedCards.clear();
 		this.cardsEl.empty();
+		this.unlinkedCardsEl.empty();
 	}
 
 	private scheduleMeasure() {
@@ -300,7 +392,10 @@ export class BacklinksSection extends Component implements HoverParent {
 		return null;
 	}
 
-	/** Title-match cards have no body, so Collapse all / Expand all ignores them. */
+	/**
+	 * Collapse all / Expand all covers the linked cards: title-match cards have
+	 * no body, and unlinked mentions are suggestions the user opens one by one.
+	 */
 	private expandableCards(): Card[] {
 		return [...this.cards.values()].filter((c) => c.expandable);
 	}
@@ -318,7 +413,7 @@ export class BacklinksSection extends Component implements HoverParent {
 		if (this.target) {
 			this.plugin.setCollapsed(
 				this.target.path,
-				cards.map((c) => [c.source.file.path, !expand]),
+				cards.map((c) => [collapseId(c.source), !expand]),
 			);
 		}
 	}
@@ -327,6 +422,13 @@ export class BacklinksSection extends Component implements HoverParent {
 		const el = evt.target as HTMLElement;
 		const card = this.cardFor(el);
 		if (!card || !this.target) return;
+
+		const linkButton = el.closest<HTMLElement>(".better-backlinks-link-button");
+		if (linkButton) {
+			evt.preventDefault();
+			void card.linkOne(linkButton);
+			return;
+		}
 
 		const checkbox = el.closest<HTMLInputElement>("input.task-list-item-checkbox");
 		if (checkbox) {
@@ -377,7 +479,7 @@ export class BacklinksSection extends Component implements HoverParent {
 
 	private cardFor(el: HTMLElement): Card | undefined {
 		const cardEl = el.closest(".better-backlinks-card");
-		for (const card of this.cards.values()) if (card.el === cardEl) return card;
+		for (const card of [...this.cards.values(), ...this.unlinkedCards.values()]) if (card.el === cardEl) return card;
 		return undefined;
 	}
 }
@@ -394,6 +496,8 @@ class Card extends Component {
 	private alive = false;
 	private readonly mentionByEl = new WeakMap<HTMLElement, Mention>();
 	private readonly propertyKeyByEl = new WeakMap<HTMLElement, string>();
+	private readonly linkButtonMention = new WeakMap<HTMLElement, Mention>();
+	private linkAllEl: HTMLElement | null = null;
 	private readonly taskLineByEl = new WeakMap<HTMLElement, number>();
 
 	constructor(
@@ -407,6 +511,13 @@ class Card extends Component {
 		headerEl.createSpan({ cls: "better-backlinks-card-hash", text: "#" });
 		this.titleEl = headerEl.createEl("a", { cls: "better-backlinks-card-title" });
 		this.metaEl = headerEl.createSpan({ cls: "better-backlinks-card-meta" });
+		if (source.kind === "unlinked") {
+			this.linkAllEl = headerEl.createEl("button", { cls: "better-backlinks-link-all", text: "Link all" });
+			this.registerDomEvent(this.linkAllEl, "click", (evt) => {
+				evt.stopPropagation();
+				void this.linkAll();
+			});
+		}
 		this.chevronEl = headerEl.createDiv({ cls: "better-backlinks-card-chevron" });
 		// The wrap animates its grid row between 0fr and 1fr; the clip hides the
 		// padded body while it shrinks.
@@ -459,7 +570,9 @@ class Card extends Component {
 		} else {
 			this.titleEl.setText(file.basename);
 		}
-		const what = titleMatch ? "title match" : plural(mentionCount(source), "mention");
+		const what = titleMatch
+			? "title match"
+			: plural(mentionCount(source), source.kind === "unlinked" ? "unlinked mention" : "mention");
 		this.metaEl.setText(`${what} · ${formatAge(file.stat.mtime)}`);
 
 		if (wasExpandable !== this.expandable) this.applyExpanded();
@@ -474,6 +587,26 @@ class Card extends Component {
 
 	mentionFor(el: HTMLElement): Mention | undefined {
 		return this.mentionByEl.get(el);
+	}
+
+	/** Links the one unlinked mention next to this Link button. */
+	async linkOne(button: HTMLElement) {
+		const mention = this.linkButtonMention.get(button);
+		const target = this.section.getTarget();
+		if (!mention || !target) return;
+		button.addClass("is-disabled");
+		await linkMentions(this.section.app, this.source.file, target, [mention]);
+	}
+
+	/** Links every unlinked mention in this note. */
+	async linkAll() {
+		const target = this.section.getTarget();
+		if (!target) return;
+		this.linkAllEl?.setAttr("disabled", "true");
+		// Use the mentions as they are now, not as they were when the card rendered.
+		const fresh = await findUnlinked(this.section.app, this.source.file, target);
+		if (fresh) await linkMentions(this.section.app, this.source.file, target, fresh.mentions);
+		this.linkAllEl?.removeAttribute("disabled");
 	}
 
 	/** The property a highlighted property link sits in, if `el` is one. */
@@ -528,7 +661,7 @@ class Card extends Component {
 		const sig = signature(source);
 		this.renderedSignature = sig;
 
-		const excerpts = await loadExcerpts(this.section.app, source);
+		const excerpts = await loadExcerpts(this.section.app, source, target);
 		if (this.renderedSignature !== sig || !this.alive) return;
 
 		if (this.bodyComponent) this.removeChild(this.bodyComponent);
@@ -598,6 +731,33 @@ class Card extends Component {
 		const app = this.section.app;
 		const sourcePath = this.source.file.path;
 
+		if (this.source.kind === "unlinked") {
+			// Each plain-text mention gets a Link button after it; clicking the text jumps to it.
+			el.querySelectorAll<HTMLElement>(`span.${UNLINKED_CLASS}`).forEach((span) => {
+				const mention = excerpt.mentions[Number(span.dataset.mention)];
+				if (!mention) return;
+				span.addClass("better-backlinks-mention");
+				this.mentionByEl.set(span, mention);
+				// An inline span rather than a <button>: a button is an atomic box the
+				// line can break after, stranding following punctuation on its own line.
+				const button = createSpan({
+					cls: "better-backlinks-link-button",
+					attr: { role: "button", tabindex: "0", "aria-label": `Link "${mention.displayText}" to ${target.basename}` },
+				});
+				setIcon(button.createSpan({ cls: "better-backlinks-link-icon" }), "link");
+				button.createSpan({ text: "Link" });
+				this.linkButtonMention.set(button, mention);
+				button.addEventListener("keydown", (evt) => {
+					if (evt.key !== "Enter" && evt.key !== " ") return;
+					evt.preventDefault();
+					void this.linkOne(button);
+				});
+				span.after(button);
+			});
+			this.markTasks(el, excerpt);
+			return;
+		}
+
 		const anchors = Array.from(el.querySelectorAll<HTMLElement>("a.internal-link")).filter((a) =>
 			resolvesTo(app, a.dataset.href ?? a.getAttr("href") ?? "", sourcePath, target),
 		);
@@ -613,12 +773,21 @@ class Card extends Component {
 			items[excerpt.ancestorCount]?.addClass("better-backlinks-match");
 		}
 
+		this.markTasks(el, excerpt);
+	}
+
+	private markTasks(el: HTMLElement, excerpt: Excerpt) {
 		el.querySelectorAll<HTMLInputElement>("input.task-list-item-checkbox").forEach((checkbox, i) => {
 			const line = excerpt.taskLines[i];
 			if (line !== undefined) this.taskLineByEl.set(checkbox, line);
 			else checkbox.disabled = true;
 		});
 	}
+}
+
+/** A card's key in the saved collapse state; unlinked cards are kept apart from linked ones. */
+function collapseId(source: BacklinkSource): string {
+	return source.kind === "unlinked" ? `${source.file.path}\nunlinked` : source.file.path;
 }
 
 /** Changes whenever the card's excerpts could render differently. */
