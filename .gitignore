@@ -1,0 +1,13 @@
+node_modules/
+main.js
+*.map
+.DS_Store
+
+# Test vault: keep the notes, ignore Obsidian's per-machine state and the built plugin
+test-vault/.obsidian/workspace*.json
+test-vault/.obsidian/plugins/better-backlinks/main.js
+test-vault/.obsidian/plugins/better-backlinks/styles.css
+test-vault/.obsidian/plugins/better-backlinks/manifest.json
+test-vault/.obsidian/plugins/better-backlinks/data.json
+test-vault/.obsidian/themes/
+test-vault/.obsidian/appearance.json
