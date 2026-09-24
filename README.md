@@ -31,13 +31,18 @@ The section scrolls with the note in Live Preview, Source mode and Reading view.
 - **Click a card's header** to collapse or expand it, or use **Collapse all / Expand all**, which covers the backlink cards. Each card remembers its state for the note you're viewing.
 - **Hover a title or link** while holding Cmd/Ctrl to see a Page Preview popover. You can change whether the modifier is needed under Settings → Core plugins → Page preview → Better Backlinks.
 
-Cards are sorted with the most recently modified note first.
+### Sorting
+
+Cards are sorted by modified date, newest first, unless you choose otherwise. The sort button in the Backlinks header offers name (A to Z or Z to A), modified date and created date (newest or oldest first). The order applies to the backlinks and the unlinked mentions; blocks inside a card stay in the order they appear in the note.
+
+The order you pick is saved for the note you're viewing. Other notes keep the default, which you can change in the plugin settings. To make a note follow the default again, choose **Use default** in its sort menu. When sorting by created date, cards show when each note was created instead of when it was modified.
 
 ## Settings
 
 | Setting | Default | |
 | --- | --- | --- |
 | Show backlinks section | On | Also available as the **Toggle backlinks section** command. The plugin sets no hotkey; you can assign one yourself. |
+| Default sort order | Modified (newest first) | Used by every note that hasn't been given its own order from the sort menu. |
 | Expand cards by default up to | 4 backlinks | Notes with more backlinks than this start with their cards collapsed. |
 | Mentions shown per card | 3 | Further blocks sit behind "+N more mentions". The property row doesn't count toward this. |
 | Highlight matches | On | Highlights links to this note in excerpts and properties, and the matching part of title-match titles. When off, they look like ordinary links and text but still jump to the mention when clicked. |

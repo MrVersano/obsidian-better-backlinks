@@ -3,12 +3,15 @@ import { rememberSection } from "./navigate";
 import { pulseExtension } from "./pulse";
 import { BetterBacklinksSettingTab } from "./settings-tab";
 import { DEFAULT_SETTINGS, type BetterBacklinksSettings } from "./settings";
+import { isSortOrder, type SortOrder } from "./sort";
 import { BacklinksSection, HOVER_SOURCE } from "./view";
 
 interface PluginData {
 	settings: BetterBacklinksSettings;
 	/** Collapse state per card, keyed by `collapseKey(current note, source note)`. */
 	collapsed: Record<string, boolean>;
+	/** Sort order chosen for a note from its sort menu, by note path; absent means the default. */
+	sortOrders: Record<string, SortOrder>;
 	coreNoticeShown: boolean;
 }
 
@@ -19,6 +22,7 @@ const collapseKey = (target: string, source: string) => `${target}\n${source}`;
 export default class BetterBacklinksPlugin extends Plugin {
 	override settings: BetterBacklinksSettings = { ...DEFAULT_SETTINGS };
 	private collapsed: Record<string, boolean> = {};
+	private sortOrders: Record<string, SortOrder> = {};
 	private coreNoticeShown = false;
 	private readonly sections = new Map<MarkdownView, BacklinksSection>();
 
@@ -35,6 +39,9 @@ export default class BetterBacklinksPlugin extends Plugin {
 		const data: Partial<PluginData> = (await this.loadData()) ?? {};
 		this.settings = { ...DEFAULT_SETTINGS, ...data.settings };
 		this.collapsed = data.collapsed ?? {};
+		this.sortOrders = Object.fromEntries(
+			Object.entries(data.sortOrders ?? {}).filter((entry): entry is [string, SortOrder] => isSortOrder(entry[1])),
+		);
 		this.coreNoticeShown = data.coreNoticeShown ?? false;
 
 		this.registerEditorExtension(pulseExtension);
@@ -51,7 +58,7 @@ export default class BetterBacklinksPlugin extends Plugin {
 		});
 
 		this.app.workspace.onLayoutReady(() => {
-			this.pruneCollapsed();
+			this.pruneSavedState();
 			this.syncViews();
 			this.showCoreNotice();
 
@@ -77,7 +84,7 @@ export default class BetterBacklinksPlugin extends Plugin {
 			);
 			this.registerEvent(
 				vault.on("rename", (file, oldPath) => {
-					if (file instanceof TFile) this.renameCollapsed(oldPath, file.path);
+					if (file instanceof TFile) this.renameSavedState(oldPath, file.path);
 					for (const section of this.sections.values()) {
 						section.forgetUnlinked(oldPath);
 						if (file instanceof TFile) void section.recheckUnlinked(file);
@@ -97,6 +104,29 @@ export default class BetterBacklinksPlugin extends Plugin {
 	async saveSettings() {
 		await this.persist();
 		for (const section of this.sections.values()) section.rerender();
+	}
+
+	/** The order for cards under `target`: its own if one was chosen, else the default. */
+	getSort(target: string): SortOrder {
+		return this.sortOrders[target] ?? this.settings.defaultSort;
+	}
+
+	/** True when `target` has its own order rather than following the default. */
+	hasOwnSort(target: string): boolean {
+		return target in this.sortOrders;
+	}
+
+	/**
+	 * Sets the order for cards under `target`, or clears it with null. Choosing
+	 * the default clears it too, so a later change to the default still applies.
+	 */
+	setSort(target: string, order: SortOrder | null) {
+		if (order === null || order === this.settings.defaultSort) delete this.sortOrders[target];
+		else this.sortOrders[target] = order;
+		this.saveSoon();
+		for (const section of this.sections.values()) {
+			if (section.getTarget()?.path === target) section.resort();
+		}
 	}
 
 	getCollapsed(target: string, source: string): boolean | undefined {
@@ -137,12 +167,13 @@ export default class BetterBacklinksPlugin extends Plugin {
 		const data: PluginData = {
 			settings: this.settings,
 			collapsed: this.collapsed,
+			sortOrders: this.sortOrders,
 			coreNoticeShown: this.coreNoticeShown,
 		};
 		await this.saveData(data);
 	}
 
-	private pruneCollapsed() {
+	private pruneSavedState() {
 		const exists = (path: string) => this.app.vault.getFileByPath(path) !== null;
 		let changed = false;
 		for (const key of Object.keys(this.collapsed)) {
@@ -151,10 +182,15 @@ export default class BetterBacklinksPlugin extends Plugin {
 			delete this.collapsed[key];
 			changed = true;
 		}
+		for (const path of Object.keys(this.sortOrders)) {
+			if (exists(path)) continue;
+			delete this.sortOrders[path];
+			changed = true;
+		}
 		if (changed) this.saveSoon();
 	}
 
-	private renameCollapsed(oldPath: string, newPath: string) {
+	private renameSavedState(oldPath: string, newPath: string) {
 		let changed = false;
 		for (const [key, value] of Object.entries(this.collapsed)) {
 			const [target = "", source = "", ...rest] = key.split("\n");
@@ -162,6 +198,12 @@ export default class BetterBacklinksPlugin extends Plugin {
 			delete this.collapsed[key];
 			const renamed = [target === oldPath ? newPath : target, source === oldPath ? newPath : source, ...rest];
 			this.collapsed[renamed.join("\n")] = value;
+			changed = true;
+		}
+		const sort = this.sortOrders[oldPath];
+		if (sort) {
+			delete this.sortOrders[oldPath];
+			this.sortOrders[newPath] = sort;
 			changed = true;
 		}
 		if (changed) this.saveSoon();

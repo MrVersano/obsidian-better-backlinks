@@ -1,5 +1,9 @@
+import { DEFAULT_SORT, type SortOrder } from "./sort";
+
 export interface BetterBacklinksSettings {
 	showSection: boolean;
+	/** Card order for notes that haven't been given their own from the sort menu. */
+	defaultSort: SortOrder;
 	/** Cards start expanded when the note has this many backlinks or fewer. */
 	expandUpTo: number;
 	/** Mention blocks shown per card before "+N more mentions". */
@@ -18,6 +22,7 @@ export interface BetterBacklinksSettings {
 
 export const DEFAULT_SETTINGS: BetterBacklinksSettings = {
 	showSection: true,
+	defaultSort: DEFAULT_SORT,
 	expandUpTo: 4,
 	mentionsPerCard: 3,
 	highlightMatches: true,

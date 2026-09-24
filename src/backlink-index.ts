@@ -37,9 +37,9 @@ export function mentionCount(source: BacklinkSource): number {
 
 /**
  * All notes with at least one resolved link to `target`, plus (when enabled)
- * notes whose title contains its name. Most recently modified first, then by
- * title so cards keep a stable order. Synchronous and cheap: it reads only the
- * metadata cache and file names, so the header can render before any file is read.
+ * notes whose title contains its name, in no particular order (the view sorts
+ * them). Synchronous and cheap: it reads only the metadata cache and file
+ * names, so the header can render before any file is read.
  */
 export function findBacklinkSources(app: App, target: TFile, options: FindOptions): BacklinkSource[] {
 	if (target.extension !== "md") return [];
@@ -69,16 +69,7 @@ export function findBacklinkSources(app: App, target: TFile, options: FindOption
 		}
 	}
 
-	return sources.sort(byRecency);
-}
-
-/** Most recently modified first, then by title so cards never shuffle. */
-export function byRecency(a: BacklinkSource, b: BacklinkSource): number {
-	return (
-		b.file.stat.mtime - a.file.stat.mtime ||
-		a.file.basename.localeCompare(b.file.basename) ||
-		a.file.path.localeCompare(b.file.path)
-	);
+	return sources;
 }
 
 const SCAN_BATCH = 100;
