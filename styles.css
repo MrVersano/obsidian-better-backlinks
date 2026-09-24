@@ -85,8 +85,19 @@
 	line-height: var(--line-height-tight);
 }
 
-.better-backlinks-header .better-backlinks-toggle-all {
+/* Sort button: pushed right, with Collapse all / Expand all after it. */
+.better-backlinks-header .better-backlinks-sort {
 	margin-left: auto;
+	color: var(--text-faint);
+	--icon-size: var(--icon-s);
+}
+
+.better-backlinks-header .better-backlinks-sort:hover {
+	color: var(--text-muted);
+}
+
+.better-backlinks-header .better-backlinks-toggle-all {
+	margin-left: 0;
 	height: auto;
 	padding: 0;
 	border: none;

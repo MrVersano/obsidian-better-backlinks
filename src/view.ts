@@ -5,6 +5,7 @@ import {
 	Component,
 	Keymap,
 	MarkdownRenderer,
+	Menu,
 	MarkdownView,
 	setIcon,
 	type HoverParent,
@@ -12,7 +13,6 @@ import {
 	type TFile,
 } from "obsidian";
 import {
-	byRecency,
 	findBacklinkSources,
 	findUnlinked,
 	isExcluded,
@@ -28,6 +28,7 @@ import { linkMentions } from "./link-mention";
 import type BetterBacklinksPlugin from "./main";
 import { openMention, openProperty } from "./navigate";
 import { propertyRows } from "./properties";
+import { compareBy, SORT_ORDERS, sortLabel } from "./sort";
 
 export const HOVER_SOURCE = "better-backlinks";
 
@@ -39,6 +40,7 @@ export class BacklinksSection extends Component implements HoverParent {
 	private readonly rootEl: HTMLElement;
 	private readonly countEl: HTMLElement;
 	private readonly toggleAllEl: HTMLElement;
+	private readonly sortEl: HTMLElement;
 	private readonly cardsEl: HTMLElement;
 	private readonly cards = new Map<string, Card>();
 	private readonly unlinkedGroupEl: HTMLElement;
@@ -70,6 +72,8 @@ export class BacklinksSection extends Component implements HoverParent {
 		const headerEl = panelEl.createDiv({ cls: "better-backlinks-header" });
 		headerEl.createDiv({ cls: "better-backlinks-title", text: "Backlinks" });
 		this.countEl = headerEl.createDiv({ cls: "better-backlinks-count" });
+		this.sortEl = headerEl.createDiv({ cls: "better-backlinks-sort clickable-icon", attr: { role: "button", tabindex: "0" } });
+		setIcon(this.sortEl, "arrow-up-narrow-wide");
 		this.toggleAllEl = headerEl.createEl("button", { cls: "better-backlinks-toggle-all" });
 		this.cardsEl = panelEl.createDiv({ cls: "better-backlinks-cards" });
 		this.unlinkedGroupEl = panelEl.createDiv({ cls: "better-backlinks-group" });
@@ -92,6 +96,13 @@ export class BacklinksSection extends Component implements HoverParent {
 
 	override onload() {
 		this.registerDomEvent(this.toggleAllEl, "click", () => this.toggleAll());
+		this.registerDomEvent(this.sortEl, "click", (evt) => this.showSortMenu(evt));
+		this.registerDomEvent(this.sortEl, "keydown", (evt) => {
+			if (evt.key !== "Enter" && evt.key !== " ") return;
+			evt.preventDefault();
+			const rect = this.sortEl.getBoundingClientRect();
+			this.showSortMenu(null, { x: rect.left, y: rect.bottom });
+		});
 		this.registerDomEvent(this.rootEl, "click", (evt) => this.onClick(evt));
 		this.registerDomEvent(this.rootEl, "mouseover", (evt) => this.onHover(evt));
 		for (const child of Array.from(this.view.contentEl.children)) {
@@ -196,8 +207,10 @@ export class BacklinksSection extends Component implements HoverParent {
 	private render() {
 		const target = this.target;
 		if (!target || !this.rootEl.isConnected) return;
-		const linked = this.linkedSources;
-		const unlinked = [...this.unlinkedSources.values()].sort(byRecency);
+		const compare = compareBy(this.plugin.getSort(target.path));
+		const linked = [...this.linkedSources].sort(compare);
+		const unlinked = [...this.unlinkedSources.values()].sort(compare);
+		this.sortEl.setAttr("aria-label", `Sort: ${sortLabel(this.plugin.getSort(target.path))}`);
 
 		const shown = linked.length > 0 || unlinked.length > 0;
 		// Obsidian's scroll-past-end padding would sit between the note and the panel.
@@ -255,6 +268,42 @@ export class BacklinksSection extends Component implements HoverParent {
 			if (collapsed !== undefined) card.setExpanded(!collapsed);
 		}
 		this.updateToggleAll();
+	}
+
+	/** Re-orders the cards after this note's sort order changed. */
+	resort() {
+		this.render();
+	}
+
+	/** Whether cards show their created date rather than their modified date. */
+	get showsCreated(): boolean {
+		return this.target !== null && this.plugin.getSort(this.target.path).startsWith("created");
+	}
+
+	private showSortMenu(evt: MouseEvent | null, position?: { x: number; y: number }) {
+		const target = this.target;
+		if (!target) return;
+		const current = this.plugin.getSort(target.path);
+		const menu = new Menu();
+		for (const { order, label } of SORT_ORDERS) {
+			menu.addItem((item) =>
+				item
+					.setTitle(label)
+					.setChecked(order === current)
+					.onClick(() => this.plugin.setSort(target.path, order)),
+			);
+		}
+		if (this.plugin.hasOwnSort(target.path)) {
+			menu.addSeparator();
+			menu.addItem((item) =>
+				item
+					.setTitle(`Use default: ${sortLabel(this.plugin.settings.defaultSort)}`)
+					.setIcon("rotate-ccw")
+					.onClick(() => this.plugin.setSort(target.path, null)),
+			);
+		}
+		if (evt) menu.showAtMouseEvent(evt);
+		else if (position) menu.showAtPosition(position);
 	}
 
 	/** Re-renders every card, e.g. after a settings change. */
@@ -573,7 +622,10 @@ class Card extends Component {
 		const what = titleMatch
 			? "title match"
 			: plural(mentionCount(source), source.kind === "unlinked" ? "unlinked mention" : "mention");
-		this.metaEl.setText(`${what} · ${formatAge(file.stat.mtime)}`);
+		const age = this.section.showsCreated
+			? `created ${formatAge(file.stat.ctime)}`
+			: formatAge(file.stat.mtime);
+		this.metaEl.setText(`${what} · ${age}`);
 
 		if (wasExpandable !== this.expandable) this.applyExpanded();
 		else if (this.expanded && this.expandable && this.renderedSignature !== signature(source)) void this.renderBody();

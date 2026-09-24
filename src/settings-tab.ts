@@ -1,4 +1,5 @@
 import { PluginSettingTab, Setting, type App } from "obsidian";
+import { isSortOrder, SORT_ORDERS } from "./sort";
 import type BetterBacklinksPlugin from "./main";
 
 export class BetterBacklinksSettingTab extends PluginSettingTab {
@@ -23,6 +24,18 @@ export class BetterBacklinksSettingTab extends PluginSettingTab {
 					await plugin.saveSettings();
 				}),
 			);
+
+		new Setting(containerEl)
+			.setName("Default sort order")
+			.setDesc("How cards are ordered. Any note can use its own order, chosen from the sort button in its Backlinks header.")
+			.addDropdown((dropdown) => {
+				for (const { order, label } of SORT_ORDERS) dropdown.addOption(order, label);
+				dropdown.setValue(settings.defaultSort).onChange(async (value) => {
+					if (!isSortOrder(value)) return;
+					settings.defaultSort = value;
+					await plugin.saveSettings();
+				});
+			});
 
 		new Setting(containerEl)
 			.setName("Expand cards by default up to")
