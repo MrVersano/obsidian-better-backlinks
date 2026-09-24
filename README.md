@@ -30,6 +30,7 @@ Cards are sorted with the most recently modified note first.
 | Show backlinks section | On | Also available as the **Toggle backlinks section** command. The plugin sets no hotkey; you can assign one yourself. |
 | Expand cards by default up to | 4 backlinks | Notes with more backlinks than this start with their cards collapsed. |
 | Mentions shown per card | 3 | Further blocks sit behind "+N more mentions". The property row doesn't count toward this. |
+| Highlight matches | On | Highlights links to this note in excerpts and properties, and the matching part of title-match titles. When off, they look like ordinary links and text but still jump to the mention when clicked. |
 | Show in Reading view | On | |
 | Include links in properties | On | Counts links in a note's properties as backlinks. Turn it off to count links in the note body only. |
 | Include title matches | On | Shows notes whose title contains this note's name, even without a link. |

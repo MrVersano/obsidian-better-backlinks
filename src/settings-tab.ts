@@ -48,6 +48,16 @@ export class BetterBacklinksSettingTab extends PluginSettingTab {
 				}),
 			);
 
+		new Setting(containerEl)
+			.setName("Highlight matches")
+			.setDesc("Highlight links to this note in excerpts and properties, and the matching part of title-match titles.")
+			.addToggle((toggle) =>
+				toggle.setValue(settings.highlightMatches).onChange(async (value) => {
+					settings.highlightMatches = value;
+					await plugin.saveSettings();
+				}),
+			);
+
 		new Setting(containerEl).setName("Show in Reading view").addToggle((toggle) =>
 			toggle.setValue(settings.showInReadingView).onChange(async (value) => {
 				settings.showInReadingView = value;
