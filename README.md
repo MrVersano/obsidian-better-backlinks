@@ -2,6 +2,8 @@
 
 Better Backlinks adds a **Backlinks** section to the bottom of every note. Each note that links to the current note gets a card, and each card shows the **whole block** around the link as rendered markdown, not a one-line search hit.
 
+![The Backlinks section under a note, with cards showing a property row, a paragraph and a task list](images/backlinks.png)
+
 - A link in a **heading** shows that heading's whole section.
 - A link in a **list item** shows the item and everything nested under it. When the item is nested, its parent items appear above it, dimmed, for context.
 - A link in a **paragraph**, **table**, **blockquote** or **callout** shows that block.
@@ -21,6 +23,16 @@ Below the backlinks, an **Unlinked mentions** group lists notes that write this 
 Once a note is linked, its card moves up into the backlinks. Mentions are matched the same way as titles (whole words, any case). Text inside existing links, tags, properties, code, URLs, `%% comments %%` and math is ignored. In a large vault the group fills in over a second or so after the note opens, because every note has to be read; the backlinks above it appear straight away.
 
 The section scrolls with the note in Live Preview, Source mode and Reading view. On a short note it sits at the bottom of the pane like a footer. It takes every colour and font from your theme, and it's hidden when a note has no backlinks.
+
+## Installing
+
+**From Obsidian:** open **Settings → Community plugins → Browse**, search for **Better Backlinks**, then install and enable it. (This works once the plugin is accepted into the community directory.)
+
+**Before that, with BRAT:** install the [BRAT](https://github.com/TfTHacker/obsidian42-brat) plugin, choose **Add beta plugin**, and enter `MrVersano/obsidian-better-backlinks`.
+
+**By hand:** download `main.js`, `manifest.json` and `styles.css` from the [latest release](https://github.com/MrVersano/obsidian-better-backlinks/releases/latest) into `<your vault>/.obsidian/plugins/better-backlinks/`, then enable **Better Backlinks** under **Settings → Community plugins**.
+
+Better Backlinks works on desktop and mobile and needs Obsidian 1.5.7 or later.
 
 ## Using it
 
@@ -62,12 +74,23 @@ Obsidian's core Backlinks plugin can also list backlinks at the bottom of notes,
 npm install
 npm run dev     # rebuild on change
 npm run build   # type-check and production build
-npm test        # unit tests for block extraction and formatting
+npm run lint    # ESLint with Obsidian's plugin review rules
 ```
 
-Each build copies `main.js`, `manifest.json` and `styles.css` into `test-vault/.obsidian/plugins/better-backlinks/`. Open `test-vault` in Obsidian to try the plugin. It contains a note for each kind of link above; `Project Atlas` is the note they link to.
+To try a build, copy `main.js`, `manifest.json` and `styles.css` into a vault's `.obsidian/plugins/better-backlinks/` folder, or symlink this folder there. If a vault named `test-vault` sits in this folder, each build is copied into it automatically.
 
 - [src/excerpt.ts](src/excerpt.ts) decides which block to show for each link. It uses no DOM, so it can be unit-tested.
 - [src/backlink-index.ts](src/backlink-index.ts) finds the linking notes using Obsidian's metadata cache.
 - [src/view.ts](src/view.ts) builds the section, mounts it and keeps it up to date.
 - [src/main.ts](src/main.ts) is the plugin entry: events, settings, the command and saved state.
+
+### Releasing
+
+1. Run `npm version patch` (or `minor` / `major`). This updates `manifest.json`, `package.json` and `versions.json`, commits, and tags the new version without a `v`, as Obsidian requires.
+2. Run `git push --follow-tags`.
+3. Run `npm run build`.
+4. On GitHub, create a release for the new tag and attach `main.js`, `manifest.json` and `styles.css`.
+
+## License
+
+[MIT](LICENSE)
