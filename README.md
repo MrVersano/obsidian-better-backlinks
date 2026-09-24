@@ -10,6 +10,16 @@ Better Backlinks adds a **Backlinks** section to the bottom of every note. Each 
 
 Notes whose **title contains this note's name** also appear, even if they never link to it. For example, `2026-09-24 Meeting with Joe` appears under the daily note `2026-09-24`. These cards show just the title, with the matching part highlighted and "title match" beside it. The name must appear as a whole word in any case, so a note called `Joe` matches `Meeting with Joe` but not `Joel's plan`. Titles identical to the note's name don't count, and neither do one-character names. If a note also links here, it gets a normal card instead.
 
+### Unlinked mentions
+
+Below the backlinks, an **Unlinked mentions** group lists notes that write this note's name as plain text without linking it. For example, "Planning to do x on 2026-09-24 in the evening" appears under the daily note `2026-09-24`. Each card shows the block around the mention, with the text marked by a dashed underline. The cards start collapsed.
+
+- **Link** after a mention turns that text into a link, for example `2026-09-24` becomes `[[2026-09-24]]`. Text cased differently from the note's name keeps its wording as the link's display text, so `project atlas` becomes `[[Project Atlas|project atlas]]`. Links follow your vault's link settings (wikilinks or Markdown links, and the path format).
+- **Link all** on a card links every mention in that note.
+- **Click the marked text** to jump to it in the source note.
+
+Once a note is linked, its card moves up into the backlinks. Mentions are matched the same way as titles (whole words, any case). Text inside existing links, tags, properties, code, URLs, `%% comments %%` and math is ignored. In a large vault the group fills in over a second or so after the note opens, because every note has to be read; the backlinks above it appear straight away.
+
 The section scrolls with the note in Live Preview, Source mode and Reading view. On a short note it sits at the bottom of the pane like a footer. It takes every colour and font from your theme, and it's hidden when a note has no backlinks.
 
 ## Using it
@@ -18,7 +28,7 @@ The section scrolls with the note in Live Preview, Source mode and Reading view.
 - **Click a highlighted link** to jump to that exact spot in the source note. The link is selected and briefly flashes so you can find it.
 - **Click a highlighted property link** to open the source note with that property flashing.
 - **Tick a checkbox** in an excerpt to update the task in the source note. This is the only edit an excerpt allows.
-- **Click a card's header** to collapse or expand it, or use **Collapse all / Expand all**. Each card remembers its state for the note you're viewing.
+- **Click a card's header** to collapse or expand it, or use **Collapse all / Expand all**, which covers the backlink cards. Each card remembers its state for the note you're viewing.
 - **Hover a title or link** while holding Cmd/Ctrl to see a Page Preview popover. You can change whether the modifier is needed under Settings → Core plugins → Page preview → Better Backlinks.
 
 Cards are sorted with the most recently modified note first.
@@ -34,6 +44,7 @@ Cards are sorted with the most recently modified note first.
 | Show in Reading view | On | |
 | Include links in properties | On | Counts links in a note's properties as backlinks. Turn it off to count links in the note body only. |
 | Include title matches | On | Shows notes whose title contains this note's name, even without a link. |
+| Show unlinked mentions | On | Lists notes that mention this note's name as plain text, with buttons to link them. |
 | Excluded folders | None | Notes in these folders never appear as backlinks, for example `Templates`. One folder per line. |
 
 ## Turn off Obsidian's own backlinks footer

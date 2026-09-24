@@ -12,7 +12,8 @@ interface PluginData {
 	coreNoticeShown: boolean;
 }
 
-// Paths can't contain a newline, so it safely separates the two halves of a key.
+// Paths can't contain a newline, so it safely separates the parts of a key:
+// the current note, the source note, and for unlinked cards a trailing "unlinked".
 const collapseKey = (target: string, source: string) => `${target}\n${source}`;
 
 export default class BetterBacklinksPlugin extends Plugin {
@@ -59,13 +60,28 @@ export default class BetterBacklinksPlugin extends Plugin {
 			this.registerEvent(workspace.on("active-leaf-change", () => this.syncViews()));
 			this.registerEvent(workspace.on("file-open", () => this.syncViews()));
 			this.registerEvent(metadataCache.on("resolved", () => this.refreshAll()));
-			this.registerEvent(metadataCache.on("changed", () => this.refreshAll()));
+			this.registerEvent(
+				metadataCache.on("changed", (file) => {
+					this.refreshAll();
+					// Only this note's text changed, so only it needs checking for unlinked mentions.
+					for (const section of this.sections.values()) void section.recheckUnlinked(file);
+				}),
+			);
 			// A new or renamed note can be a title match before it has any links.
 			this.registerEvent(vault.on("create", () => this.refreshAll()));
-			this.registerEvent(vault.on("delete", () => this.refreshAll()));
+			this.registerEvent(
+				vault.on("delete", (file) => {
+					for (const section of this.sections.values()) section.forgetUnlinked(file.path);
+					this.refreshAll();
+				}),
+			);
 			this.registerEvent(
 				vault.on("rename", (file, oldPath) => {
 					if (file instanceof TFile) this.renameCollapsed(oldPath, file.path);
+					for (const section of this.sections.values()) {
+						section.forgetUnlinked(oldPath);
+						if (file instanceof TFile) void section.recheckUnlinked(file);
+					}
 					this.syncViews();
 					this.refreshAll();
 				}),
@@ -141,12 +157,11 @@ export default class BetterBacklinksPlugin extends Plugin {
 	private renameCollapsed(oldPath: string, newPath: string) {
 		let changed = false;
 		for (const [key, value] of Object.entries(this.collapsed)) {
-			const [target = "", source = ""] = key.split("\n");
+			const [target = "", source = "", ...rest] = key.split("\n");
 			if (target !== oldPath && source !== oldPath) continue;
 			delete this.collapsed[key];
-			this.collapsed[
-				collapseKey(target === oldPath ? newPath : target, source === oldPath ? newPath : source)
-			] = value;
+			const renamed = [target === oldPath ? newPath : target, source === oldPath ? newPath : source, ...rest];
+			this.collapsed[renamed.join("\n")] = value;
 			changed = true;
 		}
 		if (changed) this.saveSoon();

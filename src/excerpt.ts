@@ -42,16 +42,23 @@ interface Block {
 	mentions: Mention[];
 }
 
+/** Class of the span that marks an unlinked mention in excerpt markdown. */
+export const UNLINKED_CLASS = "better-backlinks-unlinked";
+
 /**
  * Builds one excerpt per distinct block. Mentions that share a block, or whose
  * blocks contain one another, are merged into a single excerpt.
  * `targetEmbeds` are positions of `![[...]]` embeds of the current note.
+ * With `markMentions`, each mention's text is wrapped in a span carrying its
+ * index in the excerpt's `mentions`, so plain-text (unlinked) mentions can be
+ * found after rendering.
  */
 export function extractExcerpts(
 	text: string,
 	cache: CachedMetadata,
 	mentions: Mention[],
 	targetEmbeds: Pos[] = [],
+	{ markMentions = false } = {},
 ): Excerpt[] {
 	const lines = text.split(/\r?\n/);
 	const doc = new DocStructure(lines, cache);
@@ -64,7 +71,7 @@ export function extractExcerpts(
 		if (block) blocks.push({ ...block, mentions: [mention] });
 	}
 
-	return mergeBlocks(blocks).map((block) => doc.toExcerpt(block, targetEmbeds));
+	return mergeBlocks(blocks).map((block) => doc.toExcerpt(block, targetEmbeds, markMentions));
 }
 
 /** Merges blocks that overlap, keeping the outer block's ancestor context. */
@@ -140,7 +147,7 @@ class DocStructure {
 		return { start: line, end: line, ancestors: [] };
 	}
 
-	toExcerpt(block: Block, targetEmbeds: Pos[]): Excerpt {
+	toExcerpt(block: Block, targetEmbeds: Pos[], markMentions: boolean): Excerpt {
 		const lineMap: number[] = [];
 		for (const ancestor of block.ancestors) {
 			const [start, end] = this.ownLines(ancestor);
@@ -149,7 +156,12 @@ class DocStructure {
 		for (let l = block.start; l <= block.end; l++) lineMap.push(l);
 
 		const markdown = lineMap
-			.map((l) => (this.isInCode(l) ? this.lines[l] : embedsAsLinks(this.lines[l] ?? "")))
+			.map((l) => {
+				let line = this.lines[l] ?? "";
+				if (this.isInCode(l)) return line;
+				if (markMentions) line = markLine(line, l, block.mentions);
+				return embedsAsLinks(line);
+			})
 			.join("\n");
 
 		const inBlock = (line: number) => lineMap.includes(line);
@@ -253,6 +265,21 @@ class DocStructure {
 
 function byStartLine(a: { position: Pos }, b: { position: Pos }): number {
 	return a.position.start.line - b.position.start.line;
+}
+
+/** Wraps the mentions on source line `line` in marker spans, right to left so columns stay valid. */
+function markLine(text: string, line: number, mentions: Mention[]): string {
+	const onLine = mentions
+		.map((m, index) => ({ m, index }))
+		.filter(({ m }) => m.position.start.line === line && m.position.end.line === line)
+		.sort((a, b) => b.m.position.start.col - a.m.position.start.col);
+	for (const { m, index } of onLine) {
+		const { col: start } = m.position.start;
+		const { col: end } = m.position.end;
+		const open = `<span class="${UNLINKED_CLASS}" data-mention="${index}">`;
+		text = text.slice(0, start) + open + text.slice(start, end) + "</span>" + text.slice(end);
+	}
+	return text;
 }
 
 /** Excerpts show embeds as plain links rather than transcluding them. */

@@ -88,6 +88,18 @@ export class BetterBacklinksSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
+			.setName("Show unlinked mentions")
+			.setDesc(
+				"List notes that mention this note's name as plain text without linking it, in a group below the backlinks, with a button to turn each mention into a link.",
+			)
+			.addToggle((toggle) =>
+				toggle.setValue(settings.showUnlinkedMentions).onChange(async (value) => {
+					settings.showUnlinkedMentions = value;
+					await plugin.saveSettings();
+				}),
+			);
+
+		new Setting(containerEl)
 			.setName("Excluded folders")
 			.setDesc("Notes in these folders are never shown as backlinks, e.g. templates. One folder per line.")
 			.addTextArea((text) =>

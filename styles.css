@@ -276,6 +276,69 @@
 	min-width: 0;
 }
 
+/* ---------- Unlinked mentions ---------- */
+
+.better-backlinks-group {
+	margin-top: 28px;
+}
+
+/* Plain text that names this note: marked like a mention, with a dashed
+   underline to say it isn't a link yet. */
+.better-backlinks-excerpt .better-backlinks-unlinked {
+	text-decoration: underline dashed var(--text-faint);
+	text-underline-offset: 3px;
+	cursor: var(--cursor-link);
+}
+
+.better-backlinks-excerpt .better-backlinks-link-button,
+.better-backlinks-card-header .better-backlinks-link-all {
+	height: auto;
+	padding: 0 4px;
+	border: none;
+	background: none;
+	box-shadow: none;
+	font-family: var(--font-interface);
+	font-size: var(--font-ui-smaller);
+	color: var(--text-accent);
+	cursor: var(--cursor);
+}
+
+.better-backlinks-excerpt .better-backlinks-link-button {
+	margin-left: 2px;
+	white-space: nowrap;
+	--icon-size: var(--icon-xs);
+}
+
+.better-backlinks-excerpt .better-backlinks-link-button.is-disabled {
+	pointer-events: none;
+	opacity: 0.5;
+}
+
+.better-backlinks-excerpt .better-backlinks-link-button:hover,
+.better-backlinks-card-header .better-backlinks-link-all:hover {
+	background: none;
+	color: var(--text-accent-hover);
+	text-decoration: underline;
+}
+
+.better-backlinks-card-header .better-backlinks-link-all {
+	flex-shrink: 0;
+	margin-left: auto;
+}
+
+.better-backlinks-card-header .better-backlinks-link-all + .better-backlinks-card-chevron {
+	margin-left: 0;
+}
+
+.better-backlinks-link-icon {
+	margin-right: 2px;
+	vertical-align: -0.1em;
+}
+
+.better-backlinks-link-icon svg {
+	vertical-align: baseline;
+}
+
 /* Ancestor list items are context, not the match. */
 .better-backlinks-excerpt li.better-backlinks-context {
 	color: var(--text-muted);

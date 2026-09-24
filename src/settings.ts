@@ -11,6 +11,8 @@ export interface BetterBacklinksSettings {
 	includePropertyLinks: boolean;
 	/** Show notes whose title contains this note's name, even without a link. */
 	includeTitleMatches: boolean;
+	/** Show notes that mention this note's name as plain text, with a way to link them. */
+	showUnlinkedMentions: boolean;
 	excludedFolders: string[];
 }
 
@@ -22,5 +24,6 @@ export const DEFAULT_SETTINGS: BetterBacklinksSettings = {
 	showInReadingView: true,
 	includePropertyLinks: true,
 	includeTitleMatches: true,
+	showUnlinkedMentions: true,
 	excludedFolders: [],
 };

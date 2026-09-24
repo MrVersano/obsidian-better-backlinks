@@ -15,17 +15,26 @@ export interface TitleMatch {
  * match too much and never match.
  */
 export function titleMatcher(name: string): (title: string) => TitleMatch | null {
-	const trimmed = name.trim();
-	if ([...trimmed].length < 2) return () => null;
-
-	const escaped = trimmed.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-	// A word boundary that understands letters and digits in any script.
-	const pattern = new RegExp(`(?<![\\p{L}\\p{N}])${escaped}(?![\\p{L}\\p{N}])`, "iu");
-	const lower = trimmed.toLocaleLowerCase();
+	const pattern = namePattern(name, "iu");
+	if (!pattern) return () => null;
+	const lower = name.trim().toLocaleLowerCase();
 
 	return (title) => {
 		if (title.trim().toLocaleLowerCase() === lower) return null;
 		const match = pattern.exec(title);
 		return match ? { start: match.index, end: match.index + match[0].length } : null;
 	};
+}
+
+/**
+ * A regex for `name` as a whole word, ignoring case. Null for names under two
+ * characters, which would match too much. Shared by title matches and
+ * unlinked mentions so both follow the same rule.
+ */
+export function namePattern(name: string, flags: "iu" | "giu"): RegExp | null {
+	const trimmed = name.trim();
+	if ([...trimmed].length < 2) return null;
+	const escaped = trimmed.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+	// A word boundary that understands letters and digits in any script.
+	return new RegExp(`(?<![\\p{L}\\p{N}])${escaped}(?![\\p{L}\\p{N}])`, flags);
 }
