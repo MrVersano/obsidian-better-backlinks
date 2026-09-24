@@ -8,6 +8,8 @@ Better Backlinks adds a **Backlinks** section to the bottom of every note. Each 
 - A link in a **property**, such as `related: "[[Project Phoenix]]"`, appears as a row at the top of the card, showing the property's name and all its values.
 - If several links fall in the same block, or one block contains another, they appear once, with every link highlighted.
 
+Notes whose **title contains this note's name** also appear, even if they never link to it. For example, `2026-09-24 Meeting with Joe` appears under the daily note `2026-09-24`. These cards show just the title, with the matching part highlighted and "title match" beside it. The name must appear as a whole word in any case, so a note called `Joe` matches `Meeting with Joe` but not `Joel's plan`. Titles identical to the note's name don't count, and neither do one-character names. If a note also links here, it gets a normal card instead.
+
 The section scrolls with the note in Live Preview, Source mode and Reading view. On a short note it sits at the bottom of the pane like a footer. It takes every colour and font from your theme, and it's hidden when a note has no backlinks.
 
 ## Using it
@@ -30,6 +32,7 @@ Cards are sorted with the most recently modified note first.
 | Mentions shown per card | 3 | Further blocks sit behind "+N more mentions". The property row doesn't count toward this. |
 | Show in Reading view | On | |
 | Include links in properties | On | Counts links in a note's properties as backlinks. Turn it off to count links in the note body only. |
+| Include title matches | On | Shows notes whose title contains this note's name, even without a link. |
 | Excluded folders | None | Notes in these folders never appear as backlinks, for example `Templates`. One folder per line. |
 
 ## Turn off Obsidian's own backlinks footer

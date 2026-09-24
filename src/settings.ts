@@ -7,6 +7,8 @@ export interface BetterBacklinksSettings {
 	showInReadingView: boolean;
 	/** Count links in a source note's properties (frontmatter) as backlinks. */
 	includePropertyLinks: boolean;
+	/** Show notes whose title contains this note's name, even without a link. */
+	includeTitleMatches: boolean;
 	excludedFolders: string[];
 }
 
@@ -16,5 +18,6 @@ export const DEFAULT_SETTINGS: BetterBacklinksSettings = {
 	mentionsPerCard: 3,
 	showInReadingView: true,
 	includePropertyLinks: true,
+	includeTitleMatches: true,
 	excludedFolders: [],
 };
