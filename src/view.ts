@@ -114,8 +114,12 @@ export class BacklinksSection extends Component implements HoverParent {
 		const target = this.target;
 		if (!target || !this.rootEl.isConnected) return;
 
-		const { excludedFolders, includePropertyLinks } = this.plugin.settings;
-		const sources = findBacklinkSources(this.app, target, { excludedFolders, includePropertyLinks });
+		const { excludedFolders, includePropertyLinks, includeTitleMatches } = this.plugin.settings;
+		const sources = findBacklinkSources(this.app, target, {
+			excludedFolders,
+			includePropertyLinks,
+			includeTitleMatches,
+		});
 		const shown = sources.length > 0;
 		// Obsidian's scroll-past-end padding would sit between the note and the panel.
 		this.view.contentEl.toggleClass("better-backlinks-shown", shown);
@@ -295,14 +299,20 @@ export class BacklinksSection extends Component implements HoverParent {
 		return null;
 	}
 
+	/** Title-match cards have no body, so Collapse all / Expand all ignores them. */
+	private expandableCards(): Card[] {
+		return [...this.cards.values()].filter((c) => c.expandable);
+	}
+
 	private updateToggleAll() {
-		const cards = [...this.cards.values()];
+		const cards = this.expandableCards();
 		const expanded = cards.filter((c) => c.expanded).length;
+		this.toggleAllEl.toggle(cards.length > 0);
 		this.toggleAllEl.setText(expanded * 2 >= cards.length ? "Collapse all" : "Expand all");
 	}
 
 	private toggleAll() {
-		const cards = [...this.cards.values()];
+		const cards = this.expandableCards();
 		const expand = cards.filter((c) => c.expanded).length * 2 < cards.length;
 		if (this.target) {
 			this.plugin.setCollapsed(
@@ -404,11 +414,11 @@ class Card extends Component {
 		this.bodyEl = bodyClipEl.createDiv({ cls: "better-backlinks-card-body" });
 
 		this.registerDomEvent(headerEl, "click", (evt) => {
-			if (this.titleEl.contains(evt.target as Node)) return;
+			if (this.titleEl.contains(evt.target as Node) || !this.expandable) return;
 			this.toggle();
 		});
 		this.registerDomEvent(headerEl, "keydown", (evt) => {
-			if (evt.target !== headerEl || (evt.key !== "Enter" && evt.key !== " ")) return;
+			if (!this.expandable || evt.target !== headerEl || (evt.key !== "Enter" && evt.key !== " ")) return;
 			evt.preventDefault();
 			this.toggle();
 		});
@@ -429,12 +439,30 @@ class Card extends Component {
 		this.el.remove();
 	}
 
+	/** A card for a title match has nothing to expand: it's just the header strip. */
+	get expandable(): boolean {
+		return this.source.titleMatch === null;
+	}
+
 	update(source: BacklinkSource) {
+		const wasExpandable = this.expandable;
 		this.source = source;
-		const { file } = source;
-		this.titleEl.setText(file.basename);
-		this.metaEl.setText(`${plural(mentionCount(source), "mention")} · ${formatAge(file.stat.mtime)}`);
-		if (this.expanded && this.renderedSignature !== signature(source)) void this.renderBody();
+		const { file, titleMatch } = source;
+
+		this.titleEl.empty();
+		if (titleMatch) {
+			const name = file.basename;
+			this.titleEl.appendText(name.slice(0, titleMatch.start));
+			this.titleEl.createSpan({ cls: "better-backlinks-title-match", text: name.slice(titleMatch.start, titleMatch.end) });
+			this.titleEl.appendText(name.slice(titleMatch.end));
+		} else {
+			this.titleEl.setText(file.basename);
+		}
+		const what = titleMatch ? "title match" : plural(mentionCount(source), "mention");
+		this.metaEl.setText(`${what} · ${formatAge(file.stat.mtime)}`);
+
+		if (wasExpandable !== this.expandable) this.applyExpanded();
+		else if (this.expanded && this.expandable && this.renderedSignature !== signature(source)) void this.renderBody();
 	}
 
 	setExpanded(expanded: boolean) {
@@ -474,9 +502,21 @@ class Card extends Component {
 	}
 
 	private applyExpanded() {
+		const header = this.el.querySelector<HTMLElement>(".better-backlinks-card-header");
+		this.el.toggleClass("is-title-match", !this.expandable);
+		if (!this.expandable) {
+			this.el.addClass("is-collapsed");
+			this.chevronEl.empty();
+			this.bodyEl.empty();
+			this.renderedSignature = null;
+			header?.removeAttribute("role");
+			header?.removeAttribute("tabindex");
+			header?.removeAttribute("aria-expanded");
+			return;
+		}
+		header?.setAttrs({ role: "button", tabindex: "0", "aria-expanded": String(this.expanded) });
 		this.el.toggleClass("is-collapsed", !this.expanded);
 		setIcon(this.chevronEl, this.expanded ? "chevron-down" : "chevron-right");
-		this.el.querySelector(".better-backlinks-card-header")?.setAttr("aria-expanded", String(this.expanded));
 		if (this.expanded && this.renderedSignature !== signature(this.source)) void this.renderBody();
 	}
 
@@ -587,5 +627,6 @@ function signature(source: BacklinkSource): string {
 		source.file.stat.mtime,
 		...source.mentions.map((m) => m.position.start.offset),
 		...source.propertyMentions.map((m) => m.key),
+		source.titleMatch ? "title" : "",
 	].join("|");
 }

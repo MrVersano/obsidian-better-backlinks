@@ -66,6 +66,18 @@ export class BetterBacklinksSettingTab extends PluginSettingTab {
 			);
 
 		new Setting(containerEl)
+			.setName("Include title matches")
+			.setDesc(
+				'Show notes whose title contains this note\'s name as a whole word, even if they don\'t link to it. For example, "2026-09-24 Meeting with Joe" appears under "2026-09-24".',
+			)
+			.addToggle((toggle) =>
+				toggle.setValue(settings.includeTitleMatches).onChange(async (value) => {
+					settings.includeTitleMatches = value;
+					await plugin.saveSettings();
+				}),
+			);
+
+		new Setting(containerEl)
 			.setName("Excluded folders")
 			.setDesc("Notes in these folders are never shown as backlinks, e.g. templates. One folder per line.")
 			.addTextArea((text) =>

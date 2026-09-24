@@ -169,6 +169,17 @@
 	color: var(--text-accent);
 }
 
+/* The part of a title-match card's title that matches this note's name. */
+.better-backlinks-title-match {
+	background-color: var(--text-highlight-bg, var(--highlight-background));
+	border-radius: 3px;
+	padding: 0 3px;
+}
+
+.better-backlinks-card.is-title-match .better-backlinks-card-header {
+	cursor: auto;
+}
+
 .better-backlinks-card-meta {
 	flex-shrink: 0;
 	white-space: nowrap;

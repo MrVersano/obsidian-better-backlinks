@@ -60,6 +60,8 @@ export default class BetterBacklinksPlugin extends Plugin {
 			this.registerEvent(workspace.on("file-open", () => this.syncViews()));
 			this.registerEvent(metadataCache.on("resolved", () => this.refreshAll()));
 			this.registerEvent(metadataCache.on("changed", () => this.refreshAll()));
+			// A new or renamed note can be a title match before it has any links.
+			this.registerEvent(vault.on("create", () => this.refreshAll()));
 			this.registerEvent(vault.on("delete", () => this.refreshAll()));
 			this.registerEvent(
 				vault.on("rename", (file, oldPath) => {
