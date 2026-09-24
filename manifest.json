@@ -1,7 +1,7 @@
 {
   "id": "better-backlinks",
   "name": "Better Backlinks",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "minAppVersion": "1.5.7",
   "description": "Show backlinks at the bottom of every note as cards with the whole block around each link, plus title matches and unlinked mentions you can link in one click.",
   "author": "Kobi Versano",
