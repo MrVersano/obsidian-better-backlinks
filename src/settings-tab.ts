@@ -56,6 +56,16 @@ export class BetterBacklinksSettingTab extends PluginSettingTab {
 		);
 
 		new Setting(containerEl)
+			.setName("Include links in properties")
+			.setDesc("Count links in a note's properties, such as related: [[Note]], as backlinks. They appear as a row at the top of the card.")
+			.addToggle((toggle) =>
+				toggle.setValue(settings.includePropertyLinks).onChange(async (value) => {
+					settings.includePropertyLinks = value;
+					await plugin.saveSettings();
+				}),
+			);
+
+		new Setting(containerEl)
 			.setName("Excluded folders")
 			.setDesc("Notes in these folders are never shown as backlinks, e.g. templates. One folder per line.")
 			.addTextArea((text) =>

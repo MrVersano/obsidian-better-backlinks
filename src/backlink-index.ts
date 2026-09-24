@@ -1,7 +1,7 @@
 // Finds which notes link to the current note, and loads their excerpts.
 // Uses only the public metadataCache API; no DOM.
 
-import { getLinkpath, type App, type Pos, type TFile } from "obsidian";
+import { getLinkpath, type App, type FrontmatterLinkCache, type Pos, type TFile } from "obsidian";
 import { extractExcerpts, type Excerpt, type Mention } from "./excerpt";
 
 /** A note that links to the current note, known from the metadata cache alone. */
@@ -10,6 +10,18 @@ export interface BacklinkSource {
 	mentions: Mention[];
 	/** Embeds of the current note in this source; not mentions, but shown as links. */
 	targetEmbeds: Pos[];
+	/** Links to the current note in the source's properties (empty when that setting is off). */
+	propertyMentions: FrontmatterLinkCache[];
+}
+
+export interface FindOptions {
+	excludedFolders: string[];
+	includePropertyLinks: boolean;
+}
+
+/** Links in the body plus links in properties, as shown in a card's meta. */
+export function mentionCount(source: BacklinkSource): number {
+	return source.mentions.length + source.propertyMentions.length;
 }
 
 /**
@@ -17,19 +29,19 @@ export interface BacklinkSource {
  * first, then by title so cards keep a stable order. Synchronous and cheap: it
  * reads only the metadata cache, so the header can render before any file is read.
  */
-export function findBacklinkSources(app: App, target: TFile, excludedFolders: string[]): BacklinkSource[] {
+export function findBacklinkSources(app: App, target: TFile, options: FindOptions): BacklinkSource[] {
 	if (target.extension !== "md") return [];
 
 	const sources: BacklinkSource[] = [];
 	for (const [sourcePath, dests] of Object.entries(app.metadataCache.resolvedLinks)) {
 		if (!(target.path in dests) || sourcePath === target.path) continue;
-		if (isExcluded(sourcePath, excludedFolders)) continue;
+		if (isExcluded(sourcePath, options.excludedFolders)) continue;
 
 		const file = app.vault.getFileByPath(sourcePath);
 		if (!file || file.extension !== "md") continue;
 
-		const source = collectLinks(app, file, target);
-		if (source.mentions.length > 0) sources.push(source);
+		const source = collectLinks(app, file, target, options.includePropertyLinks);
+		if (mentionCount(source) > 0) sources.push(source);
 	}
 
 	return sources.sort(
@@ -54,7 +66,7 @@ export function resolvesTo(app: App, linktext: string, sourcePath: string, targe
 	return dest?.path === target.path;
 }
 
-function collectLinks(app: App, file: TFile, target: TFile): BacklinkSource {
+function collectLinks(app: App, file: TFile, target: TFile, includePropertyLinks: boolean): BacklinkSource {
 	const cache = app.metadataCache.getFileCache(file);
 	const codeSections = (cache?.sections ?? []).filter((s) => s.type === "code");
 	const inCode = (line: number) =>
@@ -70,7 +82,11 @@ function collectLinks(app: App, file: TFile, target: TFile): BacklinkSource {
 		.filter((embed) => resolvesTo(app, embed.link, file.path, target))
 		.map((embed) => embed.position);
 
-	return { file, mentions, targetEmbeds };
+	const propertyMentions = includePropertyLinks
+		? (cache?.frontmatterLinks ?? []).filter((link) => resolvesTo(app, link.link, file.path, target))
+		: [];
+
+	return { file, mentions, targetEmbeds, propertyMentions };
 }
 
 function isExcluded(path: string, folders: string[]): boolean {

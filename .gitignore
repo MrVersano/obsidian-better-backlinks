@@ -11,3 +11,6 @@ test-vault/.obsidian/plugins/better-backlinks/manifest.json
 test-vault/.obsidian/plugins/better-backlinks/data.json
 test-vault/.obsidian/themes/
 test-vault/.obsidian/appearance.json
+
+# Plugin data written here when the repo is symlinked into a vault
+/data.json

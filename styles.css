@@ -229,6 +229,34 @@
 	margin-bottom: 0;
 }
 
+/* Property links: one row per property, like Obsidian's properties view. */
+.better-backlinks-properties {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	font-family: var(--font-interface);
+	font-size: var(--font-ui-small);
+}
+
+.better-backlinks-property {
+	display: flex;
+	align-items: baseline;
+	gap: 12px;
+}
+
+.better-backlinks-property-key {
+	flex-shrink: 0;
+	min-width: 6em;
+	color: var(--text-muted);
+}
+
+.better-backlinks-property-values {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 2px 10px;
+	min-width: 0;
+}
+
 /* Ancestor list items are context, not the match. */
 .better-backlinks-excerpt li.better-backlinks-context {
 	color: var(--text-muted);

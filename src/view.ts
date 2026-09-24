@@ -11,11 +11,12 @@ import {
 	type HoverPopover,
 	type TFile,
 } from "obsidian";
-import { findBacklinkSources, loadExcerpts, resolvesTo, type BacklinkSource } from "./backlink-index";
+import { findBacklinkSources, loadExcerpts, mentionCount, resolvesTo, type BacklinkSource } from "./backlink-index";
 import type { Excerpt, Mention } from "./excerpt";
 import { formatAge, plural, toggleTask } from "./format";
 import type BetterBacklinksPlugin from "./main";
-import { openMention } from "./navigate";
+import { openMention, openProperty } from "./navigate";
+import { propertyRows } from "./properties";
 
 export const HOVER_SOURCE = "better-backlinks";
 
@@ -113,7 +114,8 @@ export class BacklinksSection extends Component implements HoverParent {
 		const target = this.target;
 		if (!target || !this.rootEl.isConnected) return;
 
-		const sources = findBacklinkSources(this.app, target, this.plugin.settings.excludedFolders);
+		const { excludedFolders, includePropertyLinks } = this.plugin.settings;
+		const sources = findBacklinkSources(this.app, target, { excludedFolders, includePropertyLinks });
 		const shown = sources.length > 0;
 		// Obsidian's scroll-past-end padding would sit between the note and the panel.
 		this.view.contentEl.toggleClass("better-backlinks-shown", shown);
@@ -324,6 +326,11 @@ export class BacklinksSection extends Component implements HoverParent {
 		const mentionEl = el.closest<HTMLElement>(".better-backlinks-mention");
 		if (mentionEl) {
 			evt.preventDefault();
+			const propertyKey = card.propertyKeyFor(mentionEl);
+			if (propertyKey !== undefined) {
+				void openProperty(this.app, card.source.file, propertyKey, evt);
+				return;
+			}
 			const mention = card.mentionFor(mentionEl);
 			if (mention) void openMention(this.app, card.source, this.target, mention, evt);
 			else void this.app.workspace.getLeaf(Keymap.isModEvent(evt)).openFile(this.target);
@@ -375,6 +382,7 @@ class Card extends Component {
 	private showAll = false;
 	private alive = false;
 	private readonly mentionByEl = new WeakMap<HTMLElement, Mention>();
+	private readonly propertyKeyByEl = new WeakMap<HTMLElement, string>();
 	private readonly taskLineByEl = new WeakMap<HTMLElement, number>();
 
 	constructor(
@@ -423,9 +431,9 @@ class Card extends Component {
 
 	update(source: BacklinkSource) {
 		this.source = source;
-		const { file, mentions } = source;
+		const { file } = source;
 		this.titleEl.setText(file.basename);
-		this.metaEl.setText(`${plural(mentions.length, "mention")} · ${formatAge(file.stat.mtime)}`);
+		this.metaEl.setText(`${plural(mentionCount(source), "mention")} · ${formatAge(file.stat.mtime)}`);
 		if (this.expanded && this.renderedSignature !== signature(source)) void this.renderBody();
 	}
 
@@ -437,6 +445,11 @@ class Card extends Component {
 
 	mentionFor(el: HTMLElement): Mention | undefined {
 		return this.mentionByEl.get(el);
+	}
+
+	/** The property a highlighted property link sits in, if `el` is one. */
+	propertyKeyFor(el: HTMLElement): string | undefined {
+		return this.propertyKeyByEl.get(el);
 	}
 
 	async toggleCheckbox(checkbox: HTMLInputElement) {
@@ -484,6 +497,8 @@ class Card extends Component {
 		const limit = this.section.plugin.settings.mentionsPerCard;
 		const shown = this.showAll ? excerpts : excerpts.slice(0, limit);
 		const fragment = createDiv();
+		// Property links sit above the body excerpts and don't count toward the limit.
+		if (source.propertyMentions.length > 0) this.renderProperties(fragment, target);
 		for (const excerpt of shown) {
 			const excerptEl = fragment.createDiv({ cls: "better-backlinks-excerpt markdown-rendered" });
 			await MarkdownRenderer.render(this.section.app, excerpt.markdown, excerptEl, source.file.path, component);
@@ -504,6 +519,38 @@ class Card extends Component {
 		}
 		if (this.renderedSignature !== sig || !this.alive) return;
 		this.bodyEl.replaceChildren(...Array.from(fragment.childNodes));
+	}
+
+	private renderProperties(parent: HTMLElement, target: TFile) {
+		const app = this.section.app;
+		const sourcePath = this.source.file.path;
+		const cache = app.metadataCache.getFileCache(this.source.file);
+		const rows = propertyRows(cache?.frontmatter, cache?.frontmatterLinks ?? [], (linktext) =>
+			resolvesTo(app, linktext, sourcePath, target),
+		);
+		if (rows.length === 0) return;
+
+		const el = parent.createDiv({ cls: "better-backlinks-excerpt better-backlinks-properties markdown-rendered" });
+		for (const row of rows) {
+			const rowEl = el.createDiv({ cls: "better-backlinks-property" });
+			rowEl.createSpan({ cls: "better-backlinks-property-key", text: row.key });
+			const valuesEl = rowEl.createSpan({ cls: "better-backlinks-property-values" });
+			for (const value of row.values) {
+				if (!value.link) {
+					valuesEl.createSpan({ cls: "better-backlinks-property-value", text: value.text });
+					continue;
+				}
+				const a = valuesEl.createEl("a", {
+					cls: "internal-link",
+					text: value.text,
+					attr: { "data-href": value.link.linktext, href: value.link.linktext },
+				});
+				if (value.link.isMention) {
+					a.addClass("better-backlinks-mention");
+					this.propertyKeyByEl.set(a, row.key);
+				}
+			}
+		}
 	}
 
 	private decorate(el: HTMLElement, excerpt: Excerpt, target: TFile) {
@@ -539,5 +586,6 @@ function signature(source: BacklinkSource): string {
 		source.file.path,
 		source.file.stat.mtime,
 		...source.mentions.map((m) => m.position.start.offset),
+		...source.propertyMentions.map((m) => m.key),
 	].join("|");
 }
