@@ -1,15 +1,15 @@
 /* Better Backlinks
  * Every colour, font and radius comes from the active theme's variables;
- * only spacing is given in px. The --better-backlinks-bleed-* and -push
- * properties are measured in JS (see view.ts).
+ * only spacing is given in px. The --better-backlinks-bleed-*, -inset-*,
+ * -offset and -extend properties are measured in JS (see measure() in view.ts).
  */
 
 /* ---------- Section ---------- */
 
 .better-backlinks {
-	/* Live Preview's .cm-sizer is a full-height flex column, so this pins the
-	   section to the bottom of a short note and lets it follow a long one. */
-	margin-top: auto;
+	/* Sits over Obsidian's scroll-past-end space after a long note, or at the
+	   bottom of the pane under a short one. */
+	margin-top: var(--better-backlinks-offset, 0px);
 	padding-top: 32px;
 	margin-left: calc(-1 * var(--better-backlinks-bleed-left, 0px));
 	margin-right: calc(-1 * var(--better-backlinks-bleed-right, 0px));
@@ -18,33 +18,10 @@
 	cursor: auto;
 }
 
-/* Specific enough to beat Reading view's rule zeroing the last element's
-   bottom margin. */
-.better-backlinks-shown .markdown-preview-sizer > .mod-footer > .better-backlinks.is-reading {
-	margin-top: var(--better-backlinks-push, 0px);
+/* In Reading view the section is the page's last child, where Obsidian zeroes
+   the bottom margin; this is specific enough to keep the bleed. */
+.markdown-reading-view .markdown-preview-view > .better-backlinks {
 	margin-bottom: calc(-1 * var(--better-backlinks-bleed-bottom, 0px));
-}
-
-/* Stop the section's negative bottom margin collapsing through the footer,
-   so the panel reaches down over the view's bottom padding. */
-.better-backlinks-shown .markdown-preview-sizer > .mod-footer {
-	display: flow-root;
-}
-
-/* The default theme already makes the editor's sizer a full-height column;
-   some themes (Minimal) don't, which would leave a short note's section
-   floating mid-pane. */
-.better-backlinks-shown .markdown-source-view.mod-cm6 .cm-sizer {
-	display: flex;
-	flex-direction: column;
-	min-height: 100%;
-}
-
-/* Obsidian's scroll-past-end padding (set inline) would sit between the note
-   and the panel; the panel itself gives the note room at the end. */
-.better-backlinks-shown .markdown-source-view .cm-content,
-.better-backlinks-shown .markdown-preview-sizer {
-	padding-bottom: 0 !important;
 }
 
 .better-backlinks-panel {
@@ -52,7 +29,7 @@
 	background-color: var(--background-secondary);
 	box-shadow: inset 0 2px 5px -3px var(--background-modifier-box-shadow);
 	padding-top: 22px;
-	padding-bottom: calc(34px + var(--better-backlinks-bleed-bottom, 0px));
+	padding-bottom: calc(34px + var(--better-backlinks-bleed-bottom, 0px) + var(--better-backlinks-extend, 0px));
 	/* Cards line up with the note's text column. */
 	padding-left: var(--better-backlinks-inset-left, 0px);
 	padding-right: var(--better-backlinks-inset-right, 0px);
@@ -172,7 +149,7 @@
 	text-overflow: ellipsis;
 	font-weight: 600;
 	color: var(--text-normal);
-	text-decoration: none;
+	text-decoration-line: none;
 	cursor: var(--cursor-link);
 }
 
@@ -296,7 +273,9 @@
 /* Plain text that names this note: marked like a mention, with a dashed
    underline to say it isn't a link yet. */
 .better-backlinks-excerpt .better-backlinks-unlinked {
-	text-decoration: underline dashed var(--text-faint);
+	text-decoration-line: underline;
+	text-decoration-style: dashed;
+	text-decoration-color: var(--text-faint);
 	text-underline-offset: 3px;
 	cursor: var(--cursor-link);
 }
@@ -329,7 +308,7 @@
 .better-backlinks-card-header .better-backlinks-link-all:hover {
 	background: none;
 	color: var(--text-accent-hover);
-	text-decoration: underline;
+	text-decoration-line: underline;
 }
 
 .better-backlinks-card-header .better-backlinks-link-all {

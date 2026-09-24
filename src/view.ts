@@ -57,6 +57,8 @@ export class BacklinksSection extends Component implements HoverParent {
 	private readonly modeObserver: MutationObserver;
 	private target: TFile | null = null;
 	private mode: Mode | null = null;
+	/** Where the section is mounted: the view's scroller, its sizer, and the element carrying Obsidian's scroll-past-end padding. */
+	private layout: { scroller: HTMLElement; sizer: HTMLElement; padded: HTMLElement } | null = null;
 	private mountRetry = 0;
 	private mountRetryFrame = 0;
 	private measureFrame = 0;
@@ -118,7 +120,6 @@ export class BacklinksSection extends Component implements HoverParent {
 		this.resizeObserver.disconnect();
 		this.clearCards();
 		this.rootEl.remove();
-		this.view.contentEl.removeClass("better-backlinks-shown");
 	}
 
 	/** Mounts the section in the right place for the view's mode and file, then refreshes it. */
@@ -213,8 +214,6 @@ export class BacklinksSection extends Component implements HoverParent {
 		this.sortEl.setAttr("aria-label", `Sort: ${sortLabel(this.plugin.getSort(target.path))}`);
 
 		const shown = linked.length > 0 || unlinked.length > 0;
-		// Obsidian's scroll-past-end padding would sit between the note and the panel.
-		this.view.contentEl.toggleClass("better-backlinks-shown", shown);
 		if (!shown) {
 			this.clearCards();
 			this.rootEl.hide();
@@ -320,33 +319,38 @@ export class BacklinksSection extends Component implements HoverParent {
 		if (this.target) this.plugin.setCollapsed(this.target.path, [[collapseId(card.source), !card.expanded]]);
 	}
 
+	/**
+	 * Mounts the section right after the element that carries Obsidian's
+	 * scroll-past-end padding: the editor's content in Live Preview, the page
+	 * sizer in Reading view. measure() then offsets it over that padding.
+	 */
 	private mount(mode: Mode): boolean {
 		const contentEl = this.view.contentEl;
-		let parent: HTMLElement | null;
 		let scroller: HTMLElement | null;
 		let sizer: HTMLElement | null;
+		let before: HTMLElement | null;
+		let padded: HTMLElement | null;
 
 		if (mode === "source") {
-			sizer = contentEl.querySelector<HTMLElement>(".markdown-source-view .cm-sizer");
 			scroller = contentEl.querySelector<HTMLElement>(".markdown-source-view .cm-scroller");
-			const content = sizer?.querySelector<HTMLElement>(":scope > .cm-contentContainer");
-			if (!sizer || !scroller || !content) return false;
-			if (this.rootEl.previousElementSibling !== content) content.after(this.rootEl);
-			parent = sizer;
+			sizer = scroller?.querySelector<HTMLElement>(".cm-sizer") ?? null;
+			before = sizer?.querySelector<HTMLElement>(":scope > .cm-contentContainer") ?? null;
+			padded = before?.querySelector<HTMLElement>(".cm-content") ?? null;
 		} else {
 			scroller = contentEl.querySelector<HTMLElement>(".markdown-reading-view .markdown-preview-view");
 			sizer = scroller?.querySelector<HTMLElement>(":scope > .markdown-preview-sizer") ?? null;
-			parent = sizer?.querySelector<HTMLElement>(":scope > .mod-footer") ?? null;
-			if (!scroller || !sizer || !parent) return false;
-			if (this.rootEl.parentElement !== parent) parent.appendChild(this.rootEl);
+			before = sizer;
+			padded = sizer;
 		}
+		if (!scroller || !sizer || !before || !padded) return false;
+		if (this.rootEl.previousElementSibling !== before) before.after(this.rootEl);
 
-		if (mode !== this.mode) {
+		if (mode !== this.mode || this.layout?.padded !== padded) {
 			this.mode = mode;
+			this.layout = { scroller, sizer, padded };
 			this.resizeObserver.disconnect();
-			this.resizeObserver.observe(scroller);
-			this.resizeObserver.observe(sizer);
-			this.rootEl.toggleClass("is-reading", mode === "preview");
+			// The note's own height changes as it's edited; the section's as cards expand.
+			for (const el of [scroller, sizer, before, this.rootEl]) this.resizeObserver.observe(el);
 		}
 		return true;
 	}
@@ -354,9 +358,9 @@ export class BacklinksSection extends Component implements HoverParent {
 	private detach() {
 		this.rootEl.remove();
 		this.rootEl.hide();
-		this.view.contentEl.removeClass("better-backlinks-shown");
 		this.resizeObserver.disconnect();
 		this.mode = null;
+		this.layout = null;
 	}
 
 	private clearCards() {
@@ -379,14 +383,12 @@ export class BacklinksSection extends Component implements HoverParent {
 	 * narrows the sizer, Minimal narrows each line), so measure both.
 	 */
 	private measure() {
-		const scroller = this.rootEl.closest<HTMLElement>(".cm-scroller, .markdown-preview-view");
-		const sizer = this.rootEl.closest<HTMLElement>(".cm-sizer, .markdown-preview-sizer");
-		if (!scroller || !sizer || !this.rootEl.isShown()) return;
+		if (!this.layout || !this.rootEl.isConnected || !this.rootEl.isShown()) return;
+		const { scroller, sizer, padded } = this.layout;
 
 		const scrollerRect = scroller.getBoundingClientRect();
 		const sizerRect = sizer.getBoundingClientRect();
-		// Some themes (Minimal) narrow Reading view's footer too, so bleed out
-		// from whatever box the section actually sits in.
+		// Bleed out from whatever box the section actually sits in.
 		const parent = this.rootEl.parentElement ?? sizer;
 		const parentRect = parent.getBoundingClientRect();
 		const parentStyle = getComputedStyle(parent);
@@ -413,17 +415,32 @@ export class BacklinksSection extends Component implements HoverParent {
 			"--better-backlinks-inset-right": px(inset.right),
 		});
 
-		// In Live Preview the sizer is a full-height flex column, so CSS alone
-		// pins the section to the bottom of a short note. Reading view needs the
-		// leftover space measured.
-		if (this.mode === "preview") {
-			const current = parseFloat(this.rootEl.style.getPropertyValue("--better-backlinks-push")) || 0;
-			// scrollHeight never drops below clientHeight, so measure the content's own end.
-			const contentEnd =
-				sizerRect.bottom - scrollerRect.top - scroller.clientTop + scroller.scrollTop + bleed.bottom;
-			const spare = scroller.clientHeight - (contentEnd - current);
-			const push = Math.max(0, Math.floor(spare));
-			if (push !== current) this.rootEl.setCssProps({ "--better-backlinks-push": `${push}px` });
+		// Obsidian pads the end of the note so its last line can scroll up the
+		// pane. That empty space would sit between the note and the section, so
+		// shift the section up over it; on a short note, shift it down instead
+		// so it sits at the bottom of the pane like a footer.
+		const cssNumber = (name: string) => parseFloat(this.rootEl.style.getPropertyValue(name)) || 0;
+		const currentOffset = cssNumber("--better-backlinks-offset");
+		const currentExtend = cssNumber("--better-backlinks-extend");
+		const toScrollSpace = (y: number) => y - scrollerRect.top - scroller.clientTop + scroller.scrollTop;
+		const rootRect = this.rootEl.getBoundingClientRect();
+		const height = rootRect.height - currentExtend;
+		const natural = toScrollSpace(rootRect.top) - currentOffset;
+		const noteEnd = natural - (parseFloat(getComputedStyle(padded).paddingBottom) || 0);
+		const footerTop = scroller.clientHeight - height;
+		const offset = Math.round(Math.max(noteEnd, footerTop) - natural);
+
+		// The padded element still reaches down through its padding, and the
+		// browser lets the pane scroll to its end. Grow the panel to cover that
+		// space so scrolling past the end shows panel, not a gap below it.
+		const paddedEnd = toScrollSpace(this.rootEl.previousElementSibling?.getBoundingClientRect().bottom ?? 0);
+		const extend = Math.max(0, Math.round(paddedEnd + bleed.bottom - (natural + offset + height)));
+
+		if (offset !== currentOffset || extend !== currentExtend) {
+			this.rootEl.setCssProps({
+				"--better-backlinks-offset": `${offset}px`,
+				"--better-backlinks-extend": `${extend}px`,
+			});
 		}
 	}
 
