@@ -183,6 +183,17 @@
 	color: var(--text-faint);
 }
 
+/* On mobile, titles get the room: a smaller title size, and the meta drops
+   its words ("1 mention · 3h ago" becomes "1 · 3h ago"; a title match shows
+   just its age). */
+.is-mobile .better-backlinks-card-title {
+	font-size: var(--font-ui-small);
+}
+
+.is-mobile .better-backlinks-card-meta-label {
+	display: none;
+}
+
 .better-backlinks-card-chevron {
 	margin-left: auto;
 	flex-shrink: 0;

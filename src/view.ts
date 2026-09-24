@@ -638,13 +638,24 @@ class Card extends Component {
 		} else {
 			this.titleEl.setText(file.basename);
 		}
-		const what = titleMatch
-			? "title match"
-			: plural(mentionCount(source), source.kind === "unlinked" ? "unlinked mention" : "mention");
 		const age = this.section.showsCreated
 			? `created ${formatAge(file.stat.ctime)}`
 			: formatAge(file.stat.mtime);
-		this.metaEl.setText(`${what} · ${age}`);
+		// The words in the "label" spans are hidden on mobile to leave the title
+		// more room: "1 mention · 3h ago" becomes "1 · 3h ago", and a title match
+		// shows just its age.
+		this.metaEl.empty();
+		const label = "better-backlinks-card-meta-label";
+		if (titleMatch) {
+			this.metaEl.createSpan({ cls: label, text: "title match · " });
+		} else {
+			const count = mentionCount(source);
+			const noun = source.kind === "unlinked" ? "unlinked mention" : "mention";
+			this.metaEl.appendText(String(count));
+			this.metaEl.createSpan({ cls: label, text: ` ${plural(count, noun).replace(/^\d+ /, "")}` });
+			this.metaEl.appendText(" · ");
+		}
+		this.metaEl.appendText(age);
 
 		if (wasExpandable !== this.expandable) this.applyExpanded();
 		else if (this.expanded && this.expandable && this.renderedSignature !== signature(source)) void this.renderBody();
