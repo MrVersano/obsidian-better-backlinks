@@ -36,7 +36,7 @@ export default class BetterBacklinksPlugin extends Plugin {
 	private readonly saveSoon = debounce(() => void this.persist(), 500, true);
 
 	override async onload() {
-		const data: Partial<PluginData> = (await this.loadData()) ?? {};
+		const data = ((await this.loadData()) as Partial<PluginData> | null) ?? {};
 		this.settings = { ...DEFAULT_SETTINGS, ...data.settings };
 		this.collapsed = data.collapsed ?? {};
 		this.sortOrders = Object.fromEntries(
@@ -212,7 +212,7 @@ export default class BetterBacklinksPlugin extends Plugin {
 	private showCoreNotice() {
 		if (this.coreNoticeShown) return;
 		new Notice(
-			'Better Backlinks: to avoid two backlink lists, turn off "Show backlinks at the bottom of notes" in Settings → Core plugins → Backlinks.',
+			"To avoid seeing backlinks twice, turn off the core backlinks plugin's option to show backlinks at the bottom of notes.",
 			15000,
 		);
 		this.coreNoticeShown = true;

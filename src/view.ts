@@ -112,8 +112,8 @@ export class BacklinksSection extends Component implements HoverParent {
 
 	override onunload() {
 		this.scanToken++;
-		cancelAnimationFrame(this.mountRetryFrame);
-		cancelAnimationFrame(this.measureFrame);
+		window.cancelAnimationFrame(this.mountRetryFrame);
+		window.cancelAnimationFrame(this.measureFrame);
 		this.modeObserver.disconnect();
 		this.resizeObserver.disconnect();
 		this.clearCards();
@@ -125,7 +125,7 @@ export class BacklinksSection extends Component implements HoverParent {
 	sync() {
 		const { settings } = this.plugin;
 		const file = this.view.file;
-		const mode = this.view.getMode() as Mode;
+		const mode = this.view.getMode();
 		const enabled =
 			settings.showSection && file?.extension === "md" && (mode === "source" || settings.showInReadingView);
 
@@ -133,12 +133,12 @@ export class BacklinksSection extends Component implements HoverParent {
 			this.detach();
 			return;
 		}
-		cancelAnimationFrame(this.mountRetryFrame);
+		window.cancelAnimationFrame(this.mountRetryFrame);
 		this.rootEl.toggleClass("is-plain", !settings.highlightMatches);
 		if (!this.mount(mode)) {
 			// Reading view builds its footer after rendering; try again next frame.
 			this.detach();
-			if (this.mountRetry++ < 120) this.mountRetryFrame = requestAnimationFrame(() => this.sync());
+			if (this.mountRetry++ < 120) this.mountRetryFrame = window.requestAnimationFrame(() => this.sync());
 			return;
 		}
 		this.mountRetry = 0;
@@ -368,8 +368,8 @@ export class BacklinksSection extends Component implements HoverParent {
 	}
 
 	private scheduleMeasure() {
-		cancelAnimationFrame(this.measureFrame);
-		this.measureFrame = requestAnimationFrame(() => this.measure());
+		window.cancelAnimationFrame(this.measureFrame);
+		this.measureFrame = window.requestAnimationFrame(() => this.measure());
 	}
 
 	/**
@@ -405,11 +405,13 @@ export class BacklinksSection extends Component implements HoverParent {
 			right: Math.max(0, innerLeft + scroller.clientWidth - column.right),
 		};
 		const px = (n: number) => `${n}px`;
-		this.rootEl.style.setProperty("--better-backlinks-bleed-left", px(bleed.left));
-		this.rootEl.style.setProperty("--better-backlinks-bleed-right", px(bleed.right));
-		this.rootEl.style.setProperty("--better-backlinks-bleed-bottom", px(bleed.bottom));
-		this.rootEl.style.setProperty("--better-backlinks-inset-left", px(inset.left));
-		this.rootEl.style.setProperty("--better-backlinks-inset-right", px(inset.right));
+		this.rootEl.setCssProps({
+			"--better-backlinks-bleed-left": px(bleed.left),
+			"--better-backlinks-bleed-right": px(bleed.right),
+			"--better-backlinks-bleed-bottom": px(bleed.bottom),
+			"--better-backlinks-inset-left": px(inset.left),
+			"--better-backlinks-inset-right": px(inset.right),
+		});
 
 		// In Live Preview the sizer is a full-height flex column, so CSS alone
 		// pins the section to the bottom of a short note. Reading view needs the
@@ -421,7 +423,7 @@ export class BacklinksSection extends Component implements HoverParent {
 				sizerRect.bottom - scrollerRect.top - scroller.clientTop + scroller.scrollTop + bleed.bottom;
 			const spare = scroller.clientHeight - (contentEnd - current);
 			const push = Math.max(0, Math.floor(spare));
-			if (push !== current) this.rootEl.style.setProperty("--better-backlinks-push", `${push}px`);
+			if (push !== current) this.rootEl.setCssProps({ "--better-backlinks-push": `${push}px` });
 		}
 	}
 
