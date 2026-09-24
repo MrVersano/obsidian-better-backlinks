@@ -5,6 +5,8 @@ export interface BetterBacklinksSettings {
 	/** Mention blocks shown per card before "+N more mentions". */
 	mentionsPerCard: number;
 	showInReadingView: boolean;
+	/** Count links in a source note's properties (frontmatter) as backlinks. */
+	includePropertyLinks: boolean;
 	excludedFolders: string[];
 }
 
@@ -13,5 +15,6 @@ export const DEFAULT_SETTINGS: BetterBacklinksSettings = {
 	expandUpTo: 4,
 	mentionsPerCard: 3,
 	showInReadingView: true,
+	includePropertyLinks: true,
 	excludedFolders: [],
 };

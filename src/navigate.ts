@@ -56,6 +56,29 @@ export async function openMention(app: App, source: BacklinkSource, target: TFil
 	window.setTimeout(() => el.removeClass("better-backlinks-pulse-block"), PULSE_MS);
 }
 
+/**
+ * Opens the source note and pulses the property that links here. If the note
+ * hides its properties (Obsidian's "Properties in document" setting), it just opens.
+ */
+export async function openProperty(app: App, file: TFile, key: string, evt: MouseEvent) {
+	const leaf = app.workspace.getLeaf(Keymap.isModEvent(evt));
+	await leaf.openFile(file, { active: true });
+	const view = leaf.view;
+	if (!(view instanceof MarkdownView) || view.file?.path !== file.path) return;
+
+	for (let frame = 0; frame < 30; frame++) {
+		await nextFrame();
+		const el = Array.from(view.contentEl.querySelectorAll<HTMLElement>(".metadata-property")).find(
+			(property) => property.dataset.propertyKey === key && property.offsetParent !== null,
+		);
+		if (!el) continue;
+		el.scrollIntoView({ block: "center" });
+		el.addClass("better-backlinks-pulse-block");
+		window.setTimeout(() => el.removeClass("better-backlinks-pulse-block"), PULSE_MS);
+		return;
+	}
+}
+
 /** Waits for Reading view to render the mention's section, then finds the block around the link. */
 async function findRenderedMention(
 	app: App,
