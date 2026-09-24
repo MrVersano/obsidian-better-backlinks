@@ -64,6 +64,16 @@ The order you pick is saved for the note you're viewing. Other notes keep the de
 | Show unlinked mentions | On | Lists notes that mention this note's name as plain text, with buttons to link them. |
 | Excluded folders | None | Notes in these folders never appear as backlinks, for example `Templates`. One folder per line. |
 
+## Privacy
+
+Better Backlinks works entirely inside your vault and makes no network requests.
+
+- **Backlinks** come from Obsidian's own link index, plus the text of each linking note, read to show its excerpt.
+- **Title matches** go through the list of your notes' names to find titles that contain this note's name.
+- **Unlinked mentions** read your notes' text to find this note's name written without a link.
+
+Only these last two go through your whole vault, and only while they're turned on. Turn off **Include title matches** and **Show unlinked mentions** in the settings and the plugin reads only the notes that link to the one you're viewing. Nothing is stored outside the plugin's own settings file, and the only change it makes to your notes is when you tick a checkbox in an excerpt or choose **Link** on an unlinked mention.
+
 ## Turn off Obsidian's own backlinks footer
 
 Obsidian's core Backlinks plugin can also list backlinks at the bottom of notes, which gives you two lists. To turn it off, go to **Settings → Core plugins → Backlinks** and switch off **Show backlinks at the bottom of notes**. The Backlinks pane in the sidebar is separate and not affected.
