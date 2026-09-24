@@ -169,6 +169,14 @@
 	color: var(--text-accent);
 }
 
+/* "Highlight matches" off: mentions and title matches look like plain links
+   and text, but stay clickable. */
+.better-backlinks.is-plain .better-backlinks-excerpt .better-backlinks-mention,
+.better-backlinks.is-plain .better-backlinks-title-match {
+	background-color: transparent;
+	padding: 0;
+}
+
 /* The part of a title-match card's title that matches this note's name. */
 .better-backlinks-title-match {
 	background-color: var(--text-highlight-bg, var(--highlight-background));

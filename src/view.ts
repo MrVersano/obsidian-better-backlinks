@@ -95,6 +95,7 @@ export class BacklinksSection extends Component implements HoverParent {
 			return;
 		}
 		cancelAnimationFrame(this.mountRetryFrame);
+		this.rootEl.toggleClass("is-plain", !settings.highlightMatches);
 		if (!this.mount(mode)) {
 			// Reading view builds its footer after rendering; try again next frame.
 			this.detach();

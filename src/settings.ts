@@ -4,6 +4,8 @@ export interface BetterBacklinksSettings {
 	expandUpTo: number;
 	/** Mention blocks shown per card before "+N more mentions". */
 	mentionsPerCard: number;
+	/** Highlight links to this note, and the matching part of title-match titles. */
+	highlightMatches: boolean;
 	showInReadingView: boolean;
 	/** Count links in a source note's properties (frontmatter) as backlinks. */
 	includePropertyLinks: boolean;
@@ -16,6 +18,7 @@ export const DEFAULT_SETTINGS: BetterBacklinksSettings = {
 	showSection: true,
 	expandUpTo: 4,
 	mentionsPerCard: 3,
+	highlightMatches: true,
 	showInReadingView: true,
 	includePropertyLinks: true,
 	includeTitleMatches: true,
