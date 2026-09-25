@@ -12,6 +12,12 @@ Better Backlinks adds a **Backlinks** section to the bottom of every note. Each 
 
 Notes whose **title contains this note's name** also appear, even if they never link to it. For example, `2026-09-24 Meeting with Joe` appears under the daily note `2026-09-24`. These cards show just the title, with the matching part highlighted and "title match" beside it. The name must appear as a whole word in any case, so a note called `Joe` matches `Meeting with Joe` but not `Joel's plan`. Titles identical to the note's name don't count, and neither do one-character names. If a note also links here, it gets a normal card instead.
 
+### Sidebar
+
+Everything above is also available in a sidebar, like Obsidian's own Backlinks pane. Open it with **Better Backlinks: Open sidebar** from the command palette, or with the ribbon icon. It opens in the right sidebar, and you can drag it anywhere.
+
+The sidebar shows the note you're working in and follows you as you switch notes. It works with the bottom section on or off: turn off **Show backlinks section** to see backlinks only in the sidebar. Collapsed cards and sort order are shared between the two, so a card you collapse in one is collapsed in the other.
+
 ### Unlinked mentions
 
 Below the backlinks, an **Unlinked mentions** group lists notes that write this note's name as plain text without linking it. For example, "Planning to do x on 2026-09-24 in the evening" appears under the daily note `2026-09-24`. Each card shows the block around the mention, with the text marked by a dashed underline. The cards start collapsed.
@@ -32,7 +38,7 @@ The section scrolls with the note in Live Preview, Source mode and Reading view.
 
 **By hand:** download `main.js`, `manifest.json` and `styles.css` from the [latest release](https://github.com/MrVersano/obsidian-better-backlinks/releases/latest) into `<your vault>/.obsidian/plugins/better-backlinks/`, then enable **Better Backlinks** under **Settings → Community plugins**.
 
-Better Backlinks works on desktop and mobile and needs Obsidian 1.5.7 or later.
+Better Backlinks works on desktop and mobile and needs Obsidian 1.7.2 or later.
 
 ## Using it
 

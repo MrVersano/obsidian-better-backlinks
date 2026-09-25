@@ -159,8 +159,8 @@
 
 /* "Highlight matches" off: mentions and title matches look like plain links
    and text, but stay clickable. */
-.better-backlinks.is-plain .better-backlinks-excerpt .better-backlinks-mention,
-.better-backlinks.is-plain .better-backlinks-title-match {
+.better-backlinks-panel.is-plain .better-backlinks-excerpt .better-backlinks-mention,
+.better-backlinks-panel.is-plain .better-backlinks-title-match {
 	background-color: transparent;
 	padding: 0;
 }
@@ -372,6 +372,57 @@
 }
 
 .better-backlinks-more:hover {
+	color: var(--text-muted);
+}
+
+/* ---------- Sidebar ---------- */
+
+/* In the sidebar the panel sits on the sidebar's own background, so it drops
+   the rule, tint and shadow that set it apart from a note. */
+.better-backlinks-sidebar .better-backlinks-panel {
+	border-top: none;
+	background-color: transparent;
+	box-shadow: none;
+	padding: 4px 0 24px;
+}
+
+.better-backlinks-sidebar .better-backlinks-header {
+	margin-bottom: 10px;
+}
+
+.better-backlinks-sidebar .better-backlinks-cards {
+	gap: 8px;
+}
+
+.better-backlinks-sidebar .better-backlinks-group {
+	margin-top: 20px;
+}
+
+/* A sidebar is about as narrow as a phone, so cards are compact the same way. */
+.better-backlinks-sidebar .better-backlinks-card-header {
+	gap: 6px;
+	padding: 7px 10px 6px;
+}
+
+.better-backlinks-sidebar .better-backlinks-card-title {
+	font-size: var(--font-ui-small);
+}
+
+.better-backlinks-sidebar .better-backlinks-card-meta-label {
+	display: none;
+}
+
+.better-backlinks-sidebar .better-backlinks-card-body {
+	padding: 8px 12px 10px;
+}
+
+.better-backlinks-sidebar .better-backlinks-excerpt {
+	font-size: var(--font-ui-small);
+}
+
+.better-backlinks-sidebar-empty {
+	padding: 8px 0;
+	font-size: var(--font-ui-small);
 	color: var(--text-muted);
 }
 

@@ -6,7 +6,9 @@ import { pulseExtension } from "./pulse";
 import { BetterBacklinksSettingTab } from "./settings-tab";
 import { DEFAULT_SETTINGS, type BetterBacklinksSettings } from "./settings";
 import { isSortOrder, type SortOrder } from "./sort";
-import { BacklinksSection, HOVER_SOURCE } from "./view";
+import { HOVER_SOURCE, type BacklinksPanel } from "./panel";
+import { BacklinksSidebarView, SIDEBAR_VIEW } from "./sidebar";
+import { BacklinksSection } from "./view";
 
 interface PluginData {
 	settings: BetterBacklinksSettings;
@@ -32,7 +34,7 @@ export default class BetterBacklinksPlugin extends Plugin {
 
 	private readonly refreshAll = debounce(
 		() => {
-			for (const section of this.sections.values()) section.refresh();
+			for (const panel of this.panels()) panel.refresh();
 		},
 		200,
 		true,
@@ -52,6 +54,13 @@ export default class BetterBacklinksPlugin extends Plugin {
 		this.registerMarkdownPostProcessor((el, ctx) => rememberSection(el, ctx));
 		this.registerHoverLinkSource(HOVER_SOURCE, { display: "Better Backlinks", defaultMod: true });
 		this.addSettingTab(new BetterBacklinksSettingTab(this.app, this));
+		this.registerView(SIDEBAR_VIEW, (leaf) => new BacklinksSidebarView(leaf, this));
+		this.addRibbonIcon("gallery-vertical-end", "Open backlinks sidebar", () => void this.openSidebar());
+		this.addCommand({
+			id: "open-sidebar",
+			name: "Open sidebar",
+			callback: () => void this.openSidebar(),
+		});
 		this.addCommand({
 			id: "toggle-section",
 			name: "Toggle backlinks section",
@@ -75,23 +84,23 @@ export default class BetterBacklinksPlugin extends Plugin {
 				metadataCache.on("changed", (file) => {
 					this.refreshAll();
 					// Only this note's text changed, so only it needs checking for unlinked mentions.
-					for (const section of this.sections.values()) void section.recheckUnlinked(file);
+					for (const panel of this.panels()) void panel.recheckUnlinked(file);
 				}),
 			);
 			// A new or renamed note can be a title match before it has any links.
 			this.registerEvent(vault.on("create", () => this.refreshAll()));
 			this.registerEvent(
 				vault.on("delete", (file) => {
-					for (const section of this.sections.values()) section.forgetUnlinked(file.path);
+					for (const panel of this.panels()) panel.forgetUnlinked(file.path);
 					this.refreshAll();
 				}),
 			);
 			this.registerEvent(
 				vault.on("rename", (file, oldPath) => {
 					if (file instanceof TFile) this.renameSavedState(oldPath, file.path);
-					for (const section of this.sections.values()) {
-						section.forgetUnlinked(oldPath);
-						if (file instanceof TFile) void section.recheckUnlinked(file);
+					for (const panel of this.panels()) {
+						panel.forgetUnlinked(oldPath);
+						if (file instanceof TFile) void panel.recheckUnlinked(file);
 					}
 					this.syncViews();
 					this.refreshAll();
@@ -108,6 +117,7 @@ export default class BetterBacklinksPlugin extends Plugin {
 	async saveSettings() {
 		await this.persist();
 		for (const section of this.sections.values()) section.rerender();
+		for (const view of this.sidebarViews()) view.rerender();
 	}
 
 	/** The order for cards under `target`: its own if one was chosen, else the default. */
@@ -128,8 +138,8 @@ export default class BetterBacklinksPlugin extends Plugin {
 		if (order === null || order === this.settings.defaultSort) delete this.sortOrders[target];
 		else this.sortOrders[target] = order;
 		this.saveSoon();
-		for (const section of this.sections.values()) {
-			if (section.getTarget()?.path === target) section.resort();
+		for (const panel of this.panels()) {
+			if (panel.getTarget()?.path === target) panel.resort();
 		}
 	}
 
@@ -177,7 +187,7 @@ export default class BetterBacklinksPlugin extends Plugin {
 		}
 		if (next.format === this.coreDailyNotes.format && next.folder === this.coreDailyNotes.folder) return;
 		this.coreDailyNotes = next;
-		for (const section of this.sections.values()) section.refresh();
+		for (const panel of this.panels()) panel.refresh();
 	}
 
 	getCollapsed(target: string, source: string): boolean | undefined {
@@ -188,12 +198,36 @@ export default class BetterBacklinksPlugin extends Plugin {
 		for (const [source, collapsed] of entries) this.collapsed[collapseKey(target, source)] = collapsed;
 		this.saveSoon();
 		// Every pane showing this note, including the one that changed, follows the stored state.
-		for (const section of this.sections.values()) {
-			if (section.getTarget()?.path === target) section.syncCollapsed();
+		for (const panel of this.panels()) {
+			if (panel.getTarget()?.path === target) panel.syncCollapsed();
 		}
 	}
 
-	/** Gives every open markdown view a section, and drops sections whose view closed. */
+	/** Every open backlinks panel: one per note's bottom section, one per sidebar view. */
+	private panels(): BacklinksPanel[] {
+		return [...[...this.sections.values()].map((s) => s.panel), ...this.sidebarViews().map((v) => v.panel)];
+	}
+
+	private sidebarViews(): BacklinksSidebarView[] {
+		return this.app.workspace
+			.getLeavesOfType(SIDEBAR_VIEW)
+			.map((leaf) => leaf.view)
+			.filter((view): view is BacklinksSidebarView => view instanceof BacklinksSidebarView);
+	}
+
+	/** Opens the sidebar in the right sidebar, or reveals it if it's already open. */
+	private async openSidebar() {
+		const { workspace } = this.app;
+		let leaf = workspace.getLeavesOfType(SIDEBAR_VIEW)[0] ?? null;
+		if (!leaf) {
+			leaf = workspace.getRightLeaf(false);
+			if (!leaf) return;
+			await leaf.setViewState({ type: SIDEBAR_VIEW, active: true });
+		}
+		await workspace.revealLeaf(leaf);
+	}
+
+	/** Gives every open markdown view a section, drops sections whose view closed, and points sidebars at the active note. */
 	private syncViews() {
 		// Obsidian's Daily notes settings live outside the vault's files and send
 		// no events, so re-read them whenever the views change.
@@ -215,6 +249,8 @@ export default class BetterBacklinksPlugin extends Plugin {
 			this.removeChild(section);
 			this.sections.delete(view);
 		}
+		const active = this.app.workspace.getActiveFile();
+		for (const view of this.sidebarViews()) view.follow(active);
 	}
 
 	private async persist() {
