@@ -43,6 +43,13 @@ Better Backlinks works on desktop and mobile and needs Obsidian 1.5.7 or later.
 - **Click a card's header** to collapse or expand it, or use **Collapse all / Expand all**, which covers the backlink cards. Each card remembers its state for the note you're viewing.
 - **Hover a title or link** while holding Cmd/Ctrl to see a Page Preview popover. You can change whether the modifier is needed under Settings → Core plugins → Page preview → Better Backlinks.
 
+### Notes created on this day
+
+Turn on **Show notes created on this day** under **Daily notes** in the settings, and every daily note gets a **Created on this day** group listing the notes created that day. The notes appear in the order they were created, with the time. Each card previews how the note starts, and its checkboxes work like those in backlink excerpts.
+
+- **Recognizing daily notes:** by default the plugin uses the date format and folder from Obsidian's Daily notes settings. If you use another plugin for daily notes, set **Date format** and **Folder** under **Daily notes**.
+- **Creation dates:** a note's creation date comes from its `created` property (for example `created: 2026-09-24` or `created: 2026-09-24T09:42`) when it has one, and from the file otherwise. File dates can change when notes are synced, copied or restored; a property doesn't. You can change which property is used.
+
 ### Sorting
 
 Cards are sorted by modified date, newest first, unless you choose otherwise. The sort button in the Backlinks header offers name (A to Z or Z to A), modified date and created date (newest or oldest first). The order applies to the backlinks and the unlinked mentions; blocks inside a card stay in the order they appear in the note.
@@ -63,6 +70,15 @@ The order you pick is saved for the note you're viewing. Other notes keep the de
 | Include title matches | On | Shows notes whose title contains this note's name, even without a link. |
 | Show unlinked mentions | On | Lists notes that mention this note's name as plain text, with buttons to link them. |
 | Excluded folders | None | Notes in these folders never appear as backlinks, for example `Templates`. One folder per line. |
+
+**Daily notes**
+
+| Setting | Default | |
+| --- | --- | --- |
+| Show notes created on this day | Off | Adds the **Created on this day** group to daily notes. |
+| Date format | Obsidian's Daily notes format | How daily notes are named, as a [Moment.js format](https://momentjs.com/docs/#/displaying/format/). |
+| Folder | Obsidian's Daily notes folder | Where daily notes are kept. |
+| Created date property | `created` | The property that holds a note's creation date. |
 
 ## Privacy
 

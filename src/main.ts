@@ -1,4 +1,6 @@
-import { debounce, MarkdownView, Notice, Plugin, TFile } from "obsidian";
+import { debounce, MarkdownView, normalizePath, Notice, Plugin, TFile } from "obsidian";
+import { obsidianMoment } from "./backlink-index";
+import { dailyNoteDay, DEFAULT_DAILY_FORMAT, type DailyNoteConfig, type Day } from "./daily-notes";
 import { rememberSection } from "./navigate";
 import { pulseExtension } from "./pulse";
 import { BetterBacklinksSettingTab } from "./settings-tab";
@@ -25,6 +27,8 @@ export default class BetterBacklinksPlugin extends Plugin {
 	private sortOrders: Record<string, SortOrder> = {};
 	private coreNoticeShown = false;
 	private readonly sections = new Map<MarkdownView, BacklinksSection>();
+	/** Format and folder from Obsidian's core Daily notes plugin, read from its settings file. */
+	coreDailyNotes: DailyNoteConfig = { format: DEFAULT_DAILY_FORMAT, folder: "" };
 
 	private readonly refreshAll = debounce(
 		() => {
@@ -129,6 +133,53 @@ export default class BetterBacklinksPlugin extends Plugin {
 		}
 	}
 
+	/** The daily note settings in effect: this plugin's overrides, else Obsidian's. */
+	dailyNoteConfig(): DailyNoteConfig {
+		const { dailyNoteFormat, dailyNoteFolder } = this.settings;
+		const folder = dailyNoteFolder.trim() || this.coreDailyNotes.folder;
+		return {
+			format: dailyNoteFormat.trim() || this.coreDailyNotes.format,
+			folder: folder ? normalizePath(folder) : "",
+		};
+	}
+
+	/** The day `file` is the daily note for, when "created on this day" is on; else null. */
+	dailyNoteDay(file: TFile): Day | null {
+		if (!this.settings.showCreatedOnDay) return null;
+		return dailyNoteDay(file.path, this.dailyNoteConfig(), obsidianMoment);
+	}
+
+	private loadingCoreDailyNotes: Promise<void> | null = null;
+
+	/** Re-reads Obsidian's Daily notes settings; overlapping calls share one read. */
+	private loadCoreDailyNotes(): Promise<void> {
+		this.loadingCoreDailyNotes ??= this.readCoreDailyNotes().finally(() => {
+			this.loadingCoreDailyNotes = null;
+		});
+		return this.loadingCoreDailyNotes;
+	}
+
+	/**
+	 * Reads Obsidian's core Daily notes settings (.obsidian/daily-notes.json).
+	 * Missing or unreadable settings mean Obsidian's defaults.
+	 */
+	private async readCoreDailyNotes() {
+		const next: DailyNoteConfig = { format: DEFAULT_DAILY_FORMAT, folder: "" };
+		try {
+			const path = normalizePath(`${this.app.vault.configDir}/daily-notes.json`);
+			if (await this.app.vault.adapter.exists(path)) {
+				const data = JSON.parse(await this.app.vault.adapter.read(path)) as { format?: unknown; folder?: unknown };
+				if (typeof data.format === "string" && data.format.trim()) next.format = data.format.trim();
+				if (typeof data.folder === "string") next.folder = data.folder.trim();
+			}
+		} catch {
+			// Keep the defaults.
+		}
+		if (next.format === this.coreDailyNotes.format && next.folder === this.coreDailyNotes.folder) return;
+		this.coreDailyNotes = next;
+		for (const section of this.sections.values()) section.refresh();
+	}
+
 	getCollapsed(target: string, source: string): boolean | undefined {
 		return this.collapsed[collapseKey(target, source)];
 	}
@@ -144,6 +195,9 @@ export default class BetterBacklinksPlugin extends Plugin {
 
 	/** Gives every open markdown view a section, and drops sections whose view closed. */
 	private syncViews() {
+		// Obsidian's Daily notes settings live outside the vault's files and send
+		// no events, so re-read them whenever the views change.
+		void this.loadCoreDailyNotes();
 		const views = new Set<MarkdownView>();
 		for (const leaf of this.app.workspace.getLeavesOfType("markdown")) {
 			if (!(leaf.view instanceof MarkdownView)) continue;

@@ -286,3 +286,42 @@ function markLine(text: string, line: number, mentions: Mention[]): string {
 function embedsAsLinks(line: string): string {
 	return line.replace(/!\[\[/g, "[[");
 }
+
+/**
+ * The start of a note, for previewing it: its first few blocks after the
+ * properties, capped at `maxLines` lines. Null when the note has no body.
+ */
+export function noteStartExcerpt(
+	text: string,
+	cache: CachedMetadata,
+	{ maxBlocks = 3, maxLines = 15 } = {},
+): Excerpt | null {
+	const lines = text.split(/\r?\n/);
+	const blocks = (cache.sections ?? []).filter((s) => s.type !== "yaml").slice(0, maxBlocks);
+	const first = blocks[0];
+	const last = blocks[blocks.length - 1];
+	if (!first || !last) return null;
+
+	const start = first.position.start.line;
+	const end = Math.min(last.position.end.line, start + maxLines - 1);
+	const inCode = (line: number) =>
+		(cache.sections ?? []).some(
+			(s) => s.type === "code" && s.position.start.line <= line && line <= s.position.end.line,
+		);
+	const lineMap: number[] = [];
+	for (let l = start; l <= end; l++) lineMap.push(l);
+
+	return {
+		markdown: lineMap.map((l) => (inCode(l) ? (lines[l] ?? "") : embedsAsLinks(lines[l] ?? ""))).join("\n"),
+		lineMap,
+		ancestorCount: 0,
+		mentions: [],
+		anchors: [],
+		taskLines: (cache.listItems ?? [])
+			.filter((item) => item.task !== undefined && item.position.start.line >= start && item.position.start.line <= end)
+			.map((item) => item.position.start.line)
+			.sort((a, b) => a - b),
+		startLine: start,
+		endLine: end,
+	};
+}

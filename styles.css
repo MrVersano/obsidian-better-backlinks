@@ -365,6 +365,12 @@
 	cursor: var(--cursor);
 }
 
+.better-backlinks-empty {
+	font-family: var(--font-interface);
+	font-size: var(--font-ui-smaller);
+	color: var(--text-faint);
+}
+
 .better-backlinks-more:hover {
 	color: var(--text-muted);
 }

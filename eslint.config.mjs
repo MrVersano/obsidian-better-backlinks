@@ -14,6 +14,11 @@ export default defineConfig([
 	{
 		// Unit tests run in Node, not in Obsidian.
 		files: ["test/**/*.ts"],
-		rules: { "obsidianmd/no-nodejs-modules": "off" },
+		rules: {
+			"obsidianmd/no-nodejs-modules": "off",
+			// Tests run outside Obsidian, so they use the npm moment it bundles.
+			"@typescript-eslint/no-restricted-imports": "off",
+			"import/no-extraneous-dependencies": "off",
+		},
 	},
 ]);
