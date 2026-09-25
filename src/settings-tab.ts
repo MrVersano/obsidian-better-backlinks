@@ -1,4 +1,11 @@
-import { normalizePath, PluginSettingTab, Setting, type App, type SettingDefinition } from "obsidian";
+import {
+	normalizePath,
+	PluginSettingTab,
+	Setting,
+	type App,
+	type SettingDefinition,
+	type SettingDefinitionItem,
+} from "obsidian";
 import type BetterBacklinksPlugin from "./main";
 import type { BetterBacklinksSettings } from "./settings";
 import { isSortOrder, SORT_ORDERS } from "./sort";
@@ -18,7 +25,8 @@ export class BetterBacklinksSettingTab extends PluginSettingTab {
 		super(app, plugin);
 	}
 
-	override getSettingDefinitions(): SettingDefinition<Key>[] {
+	override getSettingDefinitions(): SettingDefinitionItem<Key>[] {
+		const core = this.plugin.coreDailyNotes;
 		return [
 			{
 				name: "Show backlinks section",
@@ -73,6 +81,32 @@ export class BetterBacklinksSettingTab extends PluginSettingTab {
 				desc: "Notes in these folders never appear as backlinks, for example your templates folder. One folder per line.",
 				control: { type: "textarea", key: "excludedFolders", placeholder: "Templates" },
 			},
+			{
+				type: "group",
+				heading: "Daily notes",
+				items: [
+					{
+						name: "Show notes created on this day",
+						desc: "On a daily note, list the notes created on that day in their own group, each with a preview of how it starts.",
+						control: { type: "toggle", key: "showCreatedOnDay" },
+					},
+					{
+						name: "Date format",
+						desc: "How daily notes are named. Leave empty to use the format from Obsidian's daily notes settings.",
+						control: { type: "text", key: "dailyNoteFormat", placeholder: core.format },
+					},
+					{
+						name: "Folder",
+						desc: "Where daily notes are kept. Leave empty to use the folder from Obsidian's daily notes settings.",
+						control: { type: "text", key: "dailyNoteFolder", placeholder: core.folder || "Anywhere in the vault" },
+					},
+					{
+						name: "Created date property",
+						desc: "A property that records when a note was created, used instead of the file's date when present. File dates can change when notes are synced, copied or restored.",
+						control: { type: "text", key: "createdProperty", placeholder: "created" },
+					},
+				],
+			},
 		];
 	}
 
@@ -92,6 +126,15 @@ export class BetterBacklinksSettingTab extends PluginSettingTab {
 					.filter(Boolean)
 					.map((folder) => normalizePath(folder));
 				break;
+			case "dailyNoteFormat":
+			case "createdProperty":
+				settings[key as "dailyNoteFormat" | "createdProperty"] = String(value).trim();
+				break;
+			case "dailyNoteFolder": {
+				const folder = String(value).trim();
+				settings.dailyNoteFolder = folder ? normalizePath(folder) : "";
+				break;
+			}
 			case "defaultSort":
 				if (!isSortOrder(value)) return;
 				settings.defaultSort = value;
@@ -115,38 +158,56 @@ export class BetterBacklinksSettingTab extends PluginSettingTab {
 	override display() {
 		const { containerEl } = this;
 		containerEl.empty();
-		for (const definition of this.getSettingDefinitions()) {
-			if (!("control" in definition) || !definition.control) continue;
-			const { control } = definition;
-			const setting = new Setting(containerEl).setName(definition.name);
-			if (typeof definition.desc === "string") setting.setDesc(definition.desc);
-			const current = this.getControlValue(control.key);
-			const save = (value: unknown) => void this.setControlValue(control.key, value);
-
-			switch (control.type) {
-				case "toggle":
-					setting.addToggle((toggle) => toggle.setValue(current === true).onChange(save));
-					break;
-				case "dropdown":
-					setting.addDropdown((dropdown) =>
-						dropdown.addOptions(control.options).setValue(String(current)).onChange(save),
-					);
-					break;
-				case "number":
-					setting.addText((text) => {
-						text.inputEl.type = "number";
-						text.setValue(String(current)).onChange(save);
-					});
-					break;
-				case "textarea":
-					setting.addTextArea((text) =>
-						text
-							.setPlaceholder(control.placeholder ?? "")
-							.setValue(String(current))
-							.onChange(save),
-					);
-					break;
+		for (const item of this.getSettingDefinitions()) {
+			if ("type" in item && item.type === "group") {
+				if (item.heading) new Setting(containerEl).setName(item.heading).setHeading();
+				for (const child of item.items ?? []) this.renderControl(child);
+			} else {
+				this.renderControl(item as SettingDefinition<Key>);
 			}
+		}
+	}
+
+	private renderControl(definition: SettingDefinition<Key>) {
+		const { containerEl } = this;
+		if (!("control" in definition) || !definition.control) return;
+		const { control } = definition;
+		const setting = new Setting(containerEl).setName(definition.name);
+		if (typeof definition.desc === "string") setting.setDesc(definition.desc);
+		const current = this.getControlValue(control.key);
+		const save = (value: unknown) => void this.setControlValue(control.key, value);
+
+		switch (control.type) {
+			case "toggle":
+				setting.addToggle((toggle) => toggle.setValue(current === true).onChange(save));
+				break;
+			case "dropdown":
+				setting.addDropdown((dropdown) =>
+					dropdown.addOptions(control.options).setValue(String(current)).onChange(save),
+				);
+				break;
+			case "number":
+				setting.addText((text) => {
+					text.inputEl.type = "number";
+					text.setValue(String(current)).onChange(save);
+				});
+				break;
+			case "textarea":
+				setting.addTextArea((text) =>
+					text
+						.setPlaceholder(control.placeholder ?? "")
+						.setValue(String(current))
+						.onChange(save),
+				);
+				break;
+			case "text":
+				setting.addText((text) =>
+					text
+						.setPlaceholder(control.placeholder ?? "")
+						.setValue(String(current))
+						.onChange(save),
+				);
+				break;
 		}
 	}
 }

@@ -18,6 +18,14 @@ export interface BetterBacklinksSettings {
 	/** Show notes that mention this note's name as plain text, with a way to link them. */
 	showUnlinkedMentions: boolean;
 	excludedFolders: string[];
+	/** Daily notes: show notes created on the day a daily note is for. */
+	showCreatedOnDay: boolean;
+	/** Daily note date format; empty uses Obsidian's Daily notes setting. */
+	dailyNoteFormat: string;
+	/** Daily notes folder; empty uses Obsidian's Daily notes setting. */
+	dailyNoteFolder: string;
+	/** Property holding a note's creation date; the file date is used without it. */
+	createdProperty: string;
 }
 
 export const DEFAULT_SETTINGS: BetterBacklinksSettings = {
@@ -31,4 +39,8 @@ export const DEFAULT_SETTINGS: BetterBacklinksSettings = {
 	includeTitleMatches: true,
 	showUnlinkedMentions: true,
 	excludedFolders: [],
+	showCreatedOnDay: false,
+	dailyNoteFormat: "",
+	dailyNoteFolder: "",
+	createdProperty: "created",
 };

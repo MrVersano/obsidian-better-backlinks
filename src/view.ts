@@ -14,6 +14,7 @@ import {
 } from "obsidian";
 import {
 	findBacklinkSources,
+	findCreatedOnDay,
 	findUnlinked,
 	isExcluded,
 	loadExcerpts,
@@ -43,6 +44,12 @@ export class BacklinksSection extends Component implements HoverParent {
 	private readonly sortEl: HTMLElement;
 	private readonly cardsEl: HTMLElement;
 	private readonly cards = new Map<string, Card>();
+	private readonly createdGroupEl: HTMLElement;
+	private readonly createdCountEl: HTMLElement;
+	private readonly createdCardsEl: HTMLElement;
+	private readonly createdCards = new Map<string, Card>();
+	/** Notes created on the day of the current daily note; empty for other notes. */
+	private createdSources: BacklinkSource[] = [];
 	private readonly unlinkedGroupEl: HTMLElement;
 	private readonly unlinkedCountEl: HTMLElement;
 	private readonly unlinkedCardsEl: HTMLElement;
@@ -78,6 +85,12 @@ export class BacklinksSection extends Component implements HoverParent {
 		setIcon(this.sortEl, "arrow-up-narrow-wide");
 		this.toggleAllEl = headerEl.createEl("button", { cls: "better-backlinks-toggle-all" });
 		this.cardsEl = panelEl.createDiv({ cls: "better-backlinks-cards" });
+		this.createdGroupEl = panelEl.createDiv({ cls: "better-backlinks-group" });
+		this.createdGroupEl.hide();
+		const createdHeaderEl = this.createdGroupEl.createDiv({ cls: "better-backlinks-header" });
+		createdHeaderEl.createDiv({ cls: "better-backlinks-title", text: "Created on this day" });
+		this.createdCountEl = createdHeaderEl.createDiv({ cls: "better-backlinks-count" });
+		this.createdCardsEl = this.createdGroupEl.createDiv({ cls: "better-backlinks-cards" });
 		this.unlinkedGroupEl = panelEl.createDiv({ cls: "better-backlinks-group" });
 		this.unlinkedGroupEl.hide();
 		const groupHeaderEl = this.unlinkedGroupEl.createDiv({ cls: "better-backlinks-header" });
@@ -163,6 +176,10 @@ export class BacklinksSection extends Component implements HoverParent {
 			includeTitleMatches,
 		});
 		this.linkedSources = sources;
+		const day = this.plugin.dailyNoteDay(target);
+		this.createdSources = day
+			? findCreatedOnDay(this.app, target, day, this.plugin.settings.createdProperty.trim(), excludedFolders)
+			: [];
 		this.startUnlinkedScan(target);
 		this.render();
 	}
@@ -211,9 +228,13 @@ export class BacklinksSection extends Component implements HoverParent {
 		const compare = compareBy(this.plugin.getSort(target.path));
 		const linked = [...this.linkedSources].sort(compare);
 		const unlinked = [...this.unlinkedSources.values()].sort(compare);
+		// A day's notes read best in the order they were written.
+		const created = [...this.createdSources].sort(
+			(a, b) => (a.created?.time ?? 0) - (b.created?.time ?? 0) || compareBy("name-asc")(a, b),
+		);
 		this.sortEl.setAttr("aria-label", `Sort: ${sortLabel(this.plugin.getSort(target.path))}`);
 
-		const shown = linked.length > 0 || unlinked.length > 0;
+		const shown = linked.length > 0 || unlinked.length > 0 || created.length > 0;
 		if (!shown) {
 			this.clearCards();
 			this.rootEl.hide();
@@ -223,6 +244,10 @@ export class BacklinksSection extends Component implements HoverParent {
 		this.countEl.toggle(linked.length > 0);
 		this.countEl.setText(plural(linked.length, "note"));
 		this.syncCards(this.cards, this.cardsEl, linked, linked.length <= this.plugin.settings.expandUpTo);
+
+		this.createdGroupEl.toggle(created.length > 0);
+		this.createdCountEl.setText(plural(created.length, "note"));
+		this.syncCards(this.createdCards, this.createdCardsEl, created, created.length <= this.plugin.settings.expandUpTo);
 
 		this.unlinkedGroupEl.toggle(unlinked.length > 0);
 		this.unlinkedCountEl.setText(plural(unlinked.length, "note"));
@@ -262,7 +287,7 @@ export class BacklinksSection extends Component implements HoverParent {
 	/** Applies stored collapse state, e.g. after the same note's cards changed in another pane. */
 	syncCollapsed() {
 		if (!this.target) return;
-		for (const card of [...this.cards.values(), ...this.unlinkedCards.values()]) {
+		for (const card of this.allCards()) {
 			const collapsed = this.plugin.getCollapsed(this.target.path, collapseId(card.source));
 			if (collapsed !== undefined) card.setExpanded(!collapsed);
 		}
@@ -363,11 +388,17 @@ export class BacklinksSection extends Component implements HoverParent {
 		this.layout = null;
 	}
 
+	private allCards(): Card[] {
+		return [...this.cards.values(), ...this.createdCards.values(), ...this.unlinkedCards.values()];
+	}
+
 	private clearCards() {
-		for (const card of [...this.cards.values(), ...this.unlinkedCards.values()]) this.removeChild(card);
+		for (const card of this.allCards()) this.removeChild(card);
 		this.cards.clear();
+		this.createdCards.clear();
 		this.unlinkedCards.clear();
 		this.cardsEl.empty();
+		this.createdCardsEl.empty();
 		this.unlinkedCardsEl.empty();
 	}
 
@@ -547,7 +578,7 @@ export class BacklinksSection extends Component implements HoverParent {
 
 	private cardFor(el: HTMLElement): Card | undefined {
 		const cardEl = el.closest(".better-backlinks-card");
-		for (const card of [...this.cards.values(), ...this.unlinkedCards.values()]) if (card.el === cardEl) return card;
+		for (const card of this.allCards()) if (card.el === cardEl) return card;
 		return undefined;
 	}
 }
@@ -646,7 +677,12 @@ class Card extends Component {
 		// shows just its age.
 		this.metaEl.empty();
 		const label = "better-backlinks-card-meta-label";
-		if (titleMatch) {
+		if (source.kind === "created") {
+			// The group says when; the card says what time, if known.
+			if (source.created?.hasTime) {
+				this.metaEl.setText(new Date(source.created.time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }));
+			}
+		} else if (titleMatch) {
 			this.metaEl.createSpan({ cls: label, text: "title match · " });
 		} else {
 			const count = mentionCount(source);
@@ -655,7 +691,7 @@ class Card extends Component {
 			this.metaEl.createSpan({ cls: label, text: ` ${plural(count, noun).replace(/^\d+ /, "")}` });
 			this.metaEl.appendText(" · ");
 		}
-		this.metaEl.appendText(age);
+		if (source.kind !== "created") this.metaEl.appendText(age);
 
 		if (wasExpandable !== this.expandable) this.applyExpanded();
 		else if (this.expanded && this.expandable && this.renderedSignature !== signature(source)) void this.renderBody();
@@ -760,6 +796,9 @@ class Card extends Component {
 			await MarkdownRenderer.render(this.section.app, excerpt.markdown, excerptEl, source.file.path, component);
 			this.decorate(excerptEl, excerpt, target);
 		}
+		if (source.kind === "created" && excerpts.length === 0) {
+			fragment.createDiv({ cls: "better-backlinks-empty", text: "Empty note" });
+		}
 		const hidden = excerpts.length - shown.length;
 		if (hidden > 0) {
 			const moreEl = fragment.createDiv({
@@ -812,6 +851,11 @@ class Card extends Component {
 	private decorate(el: HTMLElement, excerpt: Excerpt, target: TFile) {
 		const app = this.section.app;
 		const sourcePath = this.source.file.path;
+
+		if (this.source.kind === "created") {
+			this.markTasks(el, excerpt);
+			return;
+		}
 
 		if (this.source.kind === "unlinked") {
 			// Each plain-text mention gets a Link button after it; clicking the text jumps to it.
@@ -869,12 +913,13 @@ class Card extends Component {
 
 /** A card's key in the saved collapse state; unlinked cards are kept apart from linked ones. */
 function collapseId(source: BacklinkSource): string {
-	return source.kind === "unlinked" ? `${source.file.path}\nunlinked` : source.file.path;
+	return source.kind === "linked" ? source.file.path : `${source.file.path}\n${source.kind}`;
 }
 
 /** Changes whenever the card's excerpts could render differently. */
 function signature(source: BacklinkSource): string {
 	return [
+		source.kind,
 		source.file.path,
 		source.file.stat.mtime,
 		...source.mentions.map((m) => m.position.start.offset),

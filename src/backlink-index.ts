@@ -1,8 +1,14 @@
 // Finds which notes link to the current note, and loads their excerpts.
 // Uses only the public metadataCache API; no DOM.
 
-import { getLinkpath, type App, type FrontmatterLinkCache, type Pos, type TFile } from "obsidian";
-import { extractExcerpts, type Excerpt, type Mention } from "./excerpt";
+import { getLinkpath, moment, type App, type FrontmatterLinkCache, type Pos, type TFile } from "obsidian";
+import { createdAt, type CreatedAt, type Day, type MomentFn } from "./daily-notes";
+
+// Obsidian's typings declare its bundled moment as a namespace, which isn't
+// callable under TypeScript's default module interop; at runtime it is the
+// moment function.
+export const obsidianMoment = moment as unknown as MomentFn;
+import { extractExcerpts, noteStartExcerpt, type Excerpt, type Mention } from "./excerpt";
 import { titleMatcher, type TitleMatch } from "./title-match";
 import { findUnlinkedMentions } from "./unlinked";
 
@@ -12,7 +18,8 @@ import { findUnlinkedMentions } from "./unlinked";
  * the note's text.
  */
 export interface BacklinkSource {
-	kind: "linked" | "unlinked";
+	/** "created": not a backlink, but a note created on the day of the current daily note. */
+	kind: "linked" | "unlinked" | "created";
 	file: TFile;
 	/** Links to the current note, or for unlinked sources, the plain-text mentions. */
 	mentions: Mention[];
@@ -22,6 +29,8 @@ export interface BacklinkSource {
 	propertyMentions: FrontmatterLinkCache[];
 	/** Set when the source has no links here but its title contains the current note's name. */
 	titleMatch: TitleMatch | null;
+	/** For "created" sources, when the note was created. */
+	created?: CreatedAt;
 }
 
 export interface FindOptions {
@@ -99,6 +108,37 @@ export async function scanUnlinked(
 	}
 }
 
+/**
+ * Notes created on `day`, going by `property` when a note has it and the
+ * file's creation date otherwise. Reads only the metadata cache and file
+ * stats, so it's quick even in a large vault.
+ */
+export function findCreatedOnDay(
+	app: App,
+	target: TFile,
+	day: Day,
+	property: string,
+	excludedFolders: string[],
+): BacklinkSource[] {
+	const sources: BacklinkSource[] = [];
+	for (const file of app.vault.getMarkdownFiles()) {
+		if (file === target || isExcluded(file.path, excludedFolders)) continue;
+		const frontmatter = app.metadataCache.getFileCache(file)?.frontmatter;
+		const created = createdAt(frontmatter, property, file.stat.ctime, obsidianMoment);
+		if (created.time < day.start || created.time >= day.end) continue;
+		sources.push({
+			kind: "created",
+			file,
+			mentions: [],
+			targetEmbeds: [],
+			propertyMentions: [],
+			titleMatch: null,
+			created,
+		});
+	}
+	return sources;
+}
+
 /** The unlinked mentions of `target` in one note, or null if there are none. */
 export async function findUnlinked(app: App, file: TFile, target: TFile): Promise<BacklinkSource | null> {
 	const cache = app.metadataCache.getFileCache(file);
@@ -114,6 +154,10 @@ export async function loadExcerpts(app: App, source: BacklinkSource, target: TFi
 	const cache = app.metadataCache.getFileCache(source.file);
 	if (!cache) return [];
 	const text = await app.vault.cachedRead(source.file);
+	if (source.kind === "created") {
+		const start = noteStartExcerpt(text, cache);
+		return start ? [start] : [];
+	}
 	if (source.kind === "unlinked") {
 		// Find the mentions again in the text being rendered, in case it changed since the scan.
 		const mentions = findUnlinkedMentions(text, cache, target.basename);
