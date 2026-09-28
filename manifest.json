@@ -4,7 +4,7 @@
   "version": "1.2.0",
   "minAppVersion": "1.7.2",
   "description": "Show backlinks at the bottom of every note as cards with the whole block around each link, plus title matches and unlinked mentions you can link in one click.",
-  "author": "Kobi Versano",
+  "author": "MrVersano",
   "authorUrl": "https://github.com/MrVersano",
   "isDesktopOnly": false
 }

@@ -11,7 +11,7 @@
     "test": "vitest run --passWithNoTests",
     "version": "node version-bump.mjs && git add manifest.json versions.json"
   },
-  "author": "Kobi Versano",
+  "author": "MrVersano",
   "license": "MIT",
   "devDependencies": {
     "@codemirror/state": "^6.5.0",
