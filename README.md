@@ -1,8 +1,16 @@
 # Better Backlinks
 
-Better Backlinks adds a **Backlinks** section to the bottom of every note. Each note that links to the current note gets a card, and each card shows the **whole block** around the link as rendered markdown, not a one-line search hit.
+Better Backlinks shows each note's backlinks as cards, at the bottom of the note, in a sidebar, or both. Each note that links to the current note gets a card, and each card shows the **whole block** around the link as rendered markdown, not a one-line search hit.
 
 ![The Backlinks section under a note, with cards showing a property row, a paragraph and a task list](images/backlinks.png)
+
+It also finds notes that are related without linking: notes whose title contains this note's name, and notes that mention its name as plain text, with a button to turn each mention into a link. Daily and weekly notes can list the notes created on their day or during their week.
+
+## What it shows
+
+### Backlinks
+
+One card per linking note, however many times it links here. The card shows the block the link sits in:
 
 - A link in a **heading** shows that heading's whole section.
 - A link in a **list item** shows the item and everything nested under it. When the item is nested, its parent items appear above it, dimmed, for context.
@@ -10,78 +18,93 @@ Better Backlinks adds a **Backlinks** section to the bottom of every note. Each 
 - A link in a **property**, such as `related: "[[Project Phoenix]]"`, appears as a row at the top of the card, showing the property's name and all its values.
 - If several links fall in the same block, or one block contains another, they appear once, with every link highlighted.
 
-Notes whose **title contains this note's name** also appear, even if they never link to it. For example, `2026-09-24 Meeting with Joe` appears under the daily note `2026-09-24`. These cards show just the title, with the matching part highlighted and "title match" beside it. The name must appear as a whole word in any case, so a note called `Joe` matches `Meeting with Joe` but not `Joel's plan`. Titles identical to the note's name don't count, and neither do one-character names. If a note also links here, it gets a normal card instead.
+Each card shows how many times the note links here and when it was last modified. Links in code blocks and embeds (`![[...]]`) don't count as backlinks.
 
-### Sidebar
+### Title matches
 
-Everything above is also available in a sidebar, like Obsidian's own Backlinks pane. Open it with **Better Backlinks: Open sidebar** from the command palette, or with the ribbon icon. It opens in the right sidebar, and you can drag it anywhere.
+Notes whose **title contains this note's name** also appear, even if they never link to it. For example, `2026-09-24 Meeting with Joe` appears under the daily note `2026-09-24`. These cards show just the title, with the matching part highlighted.
 
-The sidebar shows the note you're working in and follows you as you switch notes. It works with the bottom section on or off: turn off **Show backlinks section** to see backlinks only in the sidebar. Collapsed cards and sort order are shared between the two, so a card you collapse in one is collapsed in the other.
+The name must appear as a whole word, in any case, so a note called `Joe` matches `Meeting with Joe` but not `Joel's plan`. Titles identical to the note's name don't count, and neither do one-character names. If a note also links here, it gets a normal backlink card instead.
 
 ### Unlinked mentions
 
-Below the backlinks, an **Unlinked mentions** group lists notes that write this note's name as plain text without linking it. For example, "Planning to do x on 2026-09-24 in the evening" appears under the daily note `2026-09-24`. Each card shows the block around the mention, with the text marked by a dashed underline. The cards start collapsed.
+An **Unlinked mentions** group lists notes that write this note's name as plain text without linking it. For example, "Planning to do x on 2026-09-24 in the evening" appears under the daily note `2026-09-24`. Each card shows the block around the mention, with the text marked by a dashed underline. The cards start collapsed.
 
-- **Link** after a mention turns that text into a link, for example `2026-09-24` becomes `[[2026-09-24]]`. Text cased differently from the note's name keeps its wording as the link's display text, so `project atlas` becomes `[[Project Atlas|project atlas]]`. Links follow your vault's link settings (wikilinks or Markdown links, and the path format).
+- **Link** after a mention turns that text into a link: `2026-09-24` becomes `[[2026-09-24]]`. Text cased differently from the note's name keeps its wording as the link's display text, so `project atlas` becomes `[[Project Atlas|project atlas]]`. Links follow your vault's link settings (wikilinks or Markdown links, and the path format).
 - **Link all** on a card links every mention in that note.
 - **Click the marked text** to jump to it in the source note.
 
-Once a note is linked, its card moves up into the backlinks. Mentions are matched the same way as titles (whole words, any case). Text inside existing links, tags, properties, code, URLs, `%% comments %%` and math is ignored. In a large vault the group fills in over a second or so after the note opens, because every note has to be read; the backlinks above it appear straight away.
+Once a note is linked, its card moves up into the backlinks. Mentions are matched like titles (whole words, any case), and text inside existing links, tags, properties, code, URLs, `%% comments %%` and math is ignored. Finding mentions means reading every note, so in a large vault this group fills in over a second or so after the note opens. The backlinks above it appear straight away.
 
-The section scrolls with the note in Live Preview, Source mode and Reading view. On a short note it sits at the bottom of the pane like a footer. It takes every colour and font from your theme, and it's hidden when a note has no backlinks.
+### Notes created on this day or this week
 
-## Installing
+Daily and weekly notes can list the notes created during their day or week, in a **Created on this day** or **Created this week** group. Both are off by default; turn them on under **Daily notes** and **Weekly notes** in the settings.
 
-**From Obsidian:** open **Settings → Community plugins → Browse**, search for **Better Backlinks**, then install and enable it. (This works once the plugin is accepted into the community directory.)
+The notes appear in the order they were created, with the time (and, on a weekly note, the weekday). Each card previews how the note starts.
 
-**Before that, with BRAT:** install the [BRAT](https://github.com/TfTHacker/obsidian42-brat) plugin, choose **Add beta plugin**, and enter `MrVersano/obsidian-better-backlinks`.
+- **Recognizing daily notes:** by default the plugin uses the date format and folder from Obsidian's Daily notes settings. If you use another plugin for daily notes, set **Date format** and **Folder** under **Daily notes**.
+- **Recognizing weekly notes:** Obsidian has no built-in weekly notes. If the Periodic Notes plugin is on with weekly notes turned on, its format and folder are used. Otherwise weekly notes are named by ISO week, such as `2026-W40`, in any folder. Either way you can set **Week format** and **Folder** under **Weekly notes**. ISO tokens (`GGGG`, `WW`) give Monday-to-Sunday weeks; locale tokens (`gggg`, `ww`) follow your locale's first day of the week.
+- **Creation dates:** a note's creation date comes from its `created` property (for example `created: 2026-09-24` or `created: 2026-09-24T09:42`) when it has one, and from the file otherwise. File dates can change when notes are synced, copied or restored; a property doesn't. You can change which property is used under **Creation dates**.
 
-**By hand:** download `main.js`, `manifest.json` and `styles.css` from the [latest release](https://github.com/MrVersano/obsidian-better-backlinks/releases/latest) into `<your vault>/.obsidian/plugins/better-backlinks/`, then enable **Better Backlinks** under **Settings → Community plugins**.
+## Where it shows
 
-Better Backlinks works on desktop and mobile and needs Obsidian 1.7.2 or later.
+### At the bottom of notes
+
+The Backlinks section sits under the note in Live Preview, Source mode and Reading view, and scrolls with it. On a short note it sits at the bottom of the pane like a footer. It's hidden when a note has nothing to show. Turn it off with **Show backlinks section** in the settings or the **Toggle backlinks section** command, or leave it out of Reading view with **Show in Reading view**.
+
+Obsidian's core Backlinks plugin can also list backlinks at the bottom of notes, which would give you two lists. To turn that off, go to **Settings → Core plugins → Backlinks** and switch off **Show backlinks at the bottom of notes**. The core Backlinks pane in the sidebar isn't affected.
+
+### In the sidebar
+
+Everything is also available in a sidebar, like Obsidian's own Backlinks pane. Open it with **Better Backlinks: Open sidebar** from the command palette, or with the ribbon icon (a stack of cards). It opens in the right sidebar, and you can drag it anywhere.
+
+![The Better Backlinks sidebar next to a note, with compact cards showing property links, a paragraph and a task list](images/sidebar.png)
+
+The sidebar shows the note you're working in and follows you as you switch notes. It works with the bottom section on or off, so you can use either or both. Collapsed cards and sort order are shared between the two.
+
+### On mobile
+
+Better Backlinks works on phones and tablets. On mobile, and in the sidebar, cards are more compact so titles have room: titles are a little smaller, and the card's details drop their words ("1 · 3h ago" instead of "1 mention · 3h ago").
+
+Everything takes its colours and fonts from your theme, in light and dark mode.
 
 ## Using it
 
 - **Click a card's title** to open that note. Cmd/Ctrl-click opens it in a new tab.
 - **Click a highlighted link** to jump to that exact spot in the source note. The link is selected and briefly flashes so you can find it.
 - **Click a highlighted property link** to open the source note with that property flashing.
-- **Tick a checkbox** in an excerpt to update the task in the source note. This is the only edit an excerpt allows.
-- **Click a card's header** to collapse or expand it, or use **Collapse all / Expand all**, which covers the backlink cards. Each card remembers its state for the note you're viewing.
-- **Hover a title or link** while holding Cmd/Ctrl to see a Page Preview popover. You can change whether the modifier is needed under Settings → Core plugins → Page preview → Better Backlinks.
-
-### Notes created on this day or this week
-
-Daily and weekly notes can list the notes created during their day or week. Both are off by default.
-
-- **Daily notes:** turn on **Show notes created on this day** under **Daily notes** in the settings. Every daily note then gets a **Created on this day** group, with each note's creation time.
-- **Weekly notes:** turn on **Show notes created this week** under **Weekly notes**. Every weekly note then gets a **Created this week** group, with each note's weekday and time.
-
-The notes appear in the order they were created. Each card previews how the note starts, and its checkboxes work like those in backlink excerpts.
-
-- **Recognizing daily notes:** by default the plugin uses the date format and folder from Obsidian's Daily notes settings. If you use another plugin for daily notes, set **Date format** and **Folder** under **Daily notes**.
-- **Recognizing weekly notes:** Obsidian has no built-in weekly notes. If the Periodic Notes plugin is on with weekly notes turned on, its format and folder are used. Otherwise weekly notes are named by ISO week, such as `2026-W40`, in any folder. Either way you can set **Week format** and **Folder** under **Weekly notes**. ISO tokens (`GGGG`, `WW`) give Monday-to-Sunday weeks; locale tokens (`gggg`, `ww`) follow your locale's first day of the week.
-- **Creation dates:** a note's creation date comes from its `created` property (for example `created: 2026-09-24` or `created: 2026-09-24T09:42`) when it has one, and from the file otherwise. File dates can change when notes are synced, copied or restored; a property doesn't. You can change which property is used under **Creation dates**.
+- **Tick a checkbox** in an excerpt to update the task in the source note. Apart from **Link** on unlinked mentions, this is the only change the plugin makes to your notes.
+- **Click a card's header** to collapse or expand it, or use **Collapse all / Expand all** for the backlink cards. Each card remembers its state for the note you're viewing.
+- **Hover a title or link** while holding Cmd/Ctrl to see a Page Preview popover. You can change whether the modifier is needed under **Settings → Core plugins → Page preview → Better Backlinks**.
 
 ### Sorting
 
-Cards are sorted by modified date, newest first, unless you choose otherwise. The sort button in the Backlinks header offers name (A to Z or Z to A), modified date and created date (newest or oldest first). The order applies to the backlinks and the unlinked mentions; blocks inside a card stay in the order they appear in the note.
+Cards are sorted by modified date, newest first, unless you choose otherwise. The sort button in the Backlinks header offers name (A to Z or Z to A), modified date and created date (newest or oldest first). The order applies to the backlinks and the unlinked mentions. Blocks inside a card stay in the order they appear in the note, and notes created on a day or week are always listed in the order they were created.
 
-The order you pick is saved for the note you're viewing. Other notes keep the default, which you can change in the plugin settings. To make a note follow the default again, choose **Use default** in its sort menu. When sorting by created date, cards show when each note was created instead of when it was modified.
+The order you pick is saved for the note you're viewing. Other notes keep the default, which you can change in the settings. To make a note follow the default again, choose **Use default** in its sort menu. When sorting by created date, cards show when each note was created instead of when it was modified.
+
+## Installing
+
+**From Obsidian:** open **Settings → Community plugins → Browse**, search for **Better Backlinks**, then install and enable it.
+
+**By hand:** download `main.js`, `manifest.json` and `styles.css` from the [latest release](https://github.com/MrVersano/obsidian-better-backlinks/releases/latest) into `<your vault>/.obsidian/plugins/better-backlinks/`, then enable **Better Backlinks** under **Settings → Community plugins**.
+
+Better Backlinks works on desktop and mobile and needs Obsidian 1.7.2 or later.
 
 ## Settings
 
 | Setting | Default | |
 | --- | --- | --- |
-| Show backlinks section | On | Also available as the **Toggle backlinks section** command. The plugin sets no hotkey; you can assign one yourself. |
+| Show backlinks section | On | Shows the section at the bottom of notes. The sidebar works either way. Also available as the **Toggle backlinks section** command, which has no hotkey unless you assign one. |
 | Default sort order | Modified (newest first) | Used by every note that hasn't been given its own order from the sort menu. |
-| Expand cards by default up to | 4 backlinks | Notes with more backlinks than this start with their cards collapsed. |
+| Expand cards by default up to | 4 | Notes with more cards than this start with them collapsed. |
 | Mentions shown per card | 3 | Further blocks sit behind "+N more mentions". The property row doesn't count toward this. |
 | Highlight matches | On | Highlights links to this note in excerpts and properties, and the matching part of title-match titles. When off, they look like ordinary links and text but still jump to the mention when clicked. |
-| Show in Reading view | On | |
+| Show in Reading view | On | Shows the bottom section in Reading view too. |
 | Include links in properties | On | Counts links in a note's properties as backlinks. Turn it off to count links in the note body only. |
 | Include title matches | On | Shows notes whose title contains this note's name, even without a link. |
 | Show unlinked mentions | On | Lists notes that mention this note's name as plain text, with buttons to link them. |
-| Excluded folders | None | Notes in these folders never appear as backlinks, for example `Templates`. One folder per line. |
+| Excluded folders | None | Notes in these folders never appear, for example `Templates`. One folder per line. |
 
 **Creation dates**
 
@@ -110,14 +133,10 @@ The order you pick is saved for the note you're viewing. Other notes keep the de
 Better Backlinks works entirely inside your vault and makes no network requests.
 
 - **Backlinks** come from Obsidian's own link index, plus the text of each linking note, read to show its excerpt.
-- **Title matches** go through the list of your notes' names to find titles that contain this note's name.
+- **Title matches** and **notes created on a day or week** go through the list of your notes, using their names, properties and file dates.
 - **Unlinked mentions** read your notes' text to find this note's name written without a link.
 
-Only these last two go through your whole vault, and only while they're turned on. Turn off **Include title matches** and **Show unlinked mentions** in the settings and the plugin reads only the notes that link to the one you're viewing. Nothing is stored outside the plugin's own settings file, and the only change it makes to your notes is when you tick a checkbox in an excerpt or choose **Link** on an unlinked mention.
-
-## Turn off Obsidian's own backlinks footer
-
-Obsidian's core Backlinks plugin can also list backlinks at the bottom of notes, which gives you two lists. To turn it off, go to **Settings → Core plugins → Backlinks** and switch off **Show backlinks at the bottom of notes**. The Backlinks pane in the sidebar is separate and not affected.
+Only those last three go through your whole vault, and only while they're turned on. With **Include title matches** and **Show unlinked mentions** off (and the daily and weekly groups left off), the plugin reads only the notes that link to the one you're viewing. Nothing is stored outside the plugin's own settings file.
 
 ## Development
 
@@ -130,15 +149,16 @@ npm run lint    # ESLint with Obsidian's plugin review rules
 
 To try a build, copy `main.js`, `manifest.json` and `styles.css` into a vault's `.obsidian/plugins/better-backlinks/` folder, or symlink this folder there. If a vault named `test-vault` sits in this folder, each build is copied into it automatically.
 
-- [src/excerpt.ts](src/excerpt.ts) decides which block to show for each link. It uses no DOM, so it can be unit-tested.
-- [src/backlink-index.ts](src/backlink-index.ts) finds the linking notes using Obsidian's metadata cache.
-- [src/view.ts](src/view.ts) builds the section, mounts it and keeps it up to date.
-- [src/main.ts](src/main.ts) is the plugin entry: events, settings, the command and saved state.
+- [src/main.ts](src/main.ts) is the plugin entry: events, commands, the sidebar view and saved state.
+- [src/panel.ts](src/panel.ts) builds the groups and cards for one note. Both places that show them host a panel: [src/view.ts](src/view.ts) at the bottom of a note, and [src/sidebar.ts](src/sidebar.ts) in the sidebar.
+- [src/backlink-index.ts](src/backlink-index.ts) finds backlinks, title matches, unlinked mentions and notes created in a period, using Obsidian's metadata cache.
+- [src/excerpt.ts](src/excerpt.ts) decides which block to show for each link. [src/unlinked.ts](src/unlinked.ts), [src/title-match.ts](src/title-match.ts), [src/periodic-notes.ts](src/periodic-notes.ts), [src/properties.ts](src/properties.ts) and [src/sort.ts](src/sort.ts) hold the other rules. None of these use the DOM, so they can be unit-tested.
+- [src/settings-tab.ts](src/settings-tab.ts) declares the settings, so they appear in Obsidian's settings search.
 
 ### Releasing
 
 1. Run `npm version patch` (or `minor` / `major`). This updates `manifest.json`, `package.json` and `versions.json`, commits, and tags the new version without a `v`, as Obsidian requires.
-2. Run `git push --follow-tags`.
+2. Run `git push --follow-tags`. Push one tag at a time: GitHub skips workflows when more than three tags arrive in one push.
 3. The Release workflow builds the plugin and publishes a GitHub release for the tag with `main.js`, `manifest.json` and `styles.css`.
 
 ## License
