@@ -49,12 +49,18 @@ Better Backlinks works on desktop and mobile and needs Obsidian 1.7.2 or later.
 - **Click a card's header** to collapse or expand it, or use **Collapse all / Expand all**, which covers the backlink cards. Each card remembers its state for the note you're viewing.
 - **Hover a title or link** while holding Cmd/Ctrl to see a Page Preview popover. You can change whether the modifier is needed under Settings → Core plugins → Page preview → Better Backlinks.
 
-### Notes created on this day
+### Notes created on this day or this week
 
-Turn on **Show notes created on this day** under **Daily notes** in the settings, and every daily note gets a **Created on this day** group listing the notes created that day. The notes appear in the order they were created, with the time. Each card previews how the note starts, and its checkboxes work like those in backlink excerpts.
+Daily and weekly notes can list the notes created during their day or week. Both are off by default.
+
+- **Daily notes:** turn on **Show notes created on this day** under **Daily notes** in the settings. Every daily note then gets a **Created on this day** group, with each note's creation time.
+- **Weekly notes:** turn on **Show notes created this week** under **Weekly notes**. Every weekly note then gets a **Created this week** group, with each note's weekday and time.
+
+The notes appear in the order they were created. Each card previews how the note starts, and its checkboxes work like those in backlink excerpts.
 
 - **Recognizing daily notes:** by default the plugin uses the date format and folder from Obsidian's Daily notes settings. If you use another plugin for daily notes, set **Date format** and **Folder** under **Daily notes**.
-- **Creation dates:** a note's creation date comes from its `created` property (for example `created: 2026-09-24` or `created: 2026-09-24T09:42`) when it has one, and from the file otherwise. File dates can change when notes are synced, copied or restored; a property doesn't. You can change which property is used.
+- **Recognizing weekly notes:** Obsidian has no built-in weekly notes. If the Periodic Notes plugin is on with weekly notes turned on, its format and folder are used. Otherwise weekly notes are named by ISO week, such as `2026-W40`, in any folder. Either way you can set **Week format** and **Folder** under **Weekly notes**. ISO tokens (`GGGG`, `WW`) give Monday-to-Sunday weeks; locale tokens (`gggg`, `ww`) follow your locale's first day of the week.
+- **Creation dates:** a note's creation date comes from its `created` property (for example `created: 2026-09-24` or `created: 2026-09-24T09:42`) when it has one, and from the file otherwise. File dates can change when notes are synced, copied or restored; a property doesn't. You can change which property is used under **Creation dates**.
 
 ### Sorting
 
@@ -77,6 +83,12 @@ The order you pick is saved for the note you're viewing. Other notes keep the de
 | Show unlinked mentions | On | Lists notes that mention this note's name as plain text, with buttons to link them. |
 | Excluded folders | None | Notes in these folders never appear as backlinks, for example `Templates`. One folder per line. |
 
+**Creation dates**
+
+| Setting | Default | |
+| --- | --- | --- |
+| Created date property | `created` | The property that holds a note's creation date, used by the daily and weekly notes groups. |
+
 **Daily notes**
 
 | Setting | Default | |
@@ -84,7 +96,14 @@ The order you pick is saved for the note you're viewing. Other notes keep the de
 | Show notes created on this day | Off | Adds the **Created on this day** group to daily notes. |
 | Date format | Obsidian's Daily notes format | How daily notes are named, as a [Moment.js format](https://momentjs.com/docs/#/displaying/format/). |
 | Folder | Obsidian's Daily notes folder | Where daily notes are kept. |
-| Created date property | `created` | The property that holds a note's creation date. |
+
+**Weekly notes**
+
+| Setting | Default | |
+| --- | --- | --- |
+| Show notes created this week | Off | Adds the **Created this week** group to weekly notes. |
+| Week format | Periodic Notes' format, else `GGGG-[W]WW` | How weekly notes are named, as a [Moment.js format](https://momentjs.com/docs/#/displaying/format/). |
+| Folder | Periodic Notes' folder, else anywhere | Where weekly notes are kept. |
 
 ## Privacy
 

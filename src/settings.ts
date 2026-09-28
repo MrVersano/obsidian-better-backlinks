@@ -26,6 +26,12 @@ export interface BetterBacklinksSettings {
 	dailyNoteFolder: string;
 	/** Property holding a note's creation date; the file date is used without it. */
 	createdProperty: string;
+	/** Weekly notes: show notes created during the week a weekly note is for. */
+	showCreatedThisWeek: boolean;
+	/** Weekly note format; empty uses Periodic Notes' setting, else GGGG-[W]WW. */
+	weeklyNoteFormat: string;
+	/** Weekly notes folder; empty uses Periodic Notes' setting, else anywhere. */
+	weeklyNoteFolder: string;
 }
 
 export const DEFAULT_SETTINGS: BetterBacklinksSettings = {
@@ -43,4 +49,7 @@ export const DEFAULT_SETTINGS: BetterBacklinksSettings = {
 	dailyNoteFormat: "",
 	dailyNoteFolder: "",
 	createdProperty: "created",
+	showCreatedThisWeek: false,
+	weeklyNoteFormat: "",
+	weeklyNoteFolder: "",
 };

@@ -1,5 +1,5 @@
-// The backlinks content: the Backlinks, Created on this day and Unlinked
-// mentions groups and their cards, for one note. Hosted at the bottom of a
+// The backlinks content: the Backlinks, Created on this day / this week and
+// Unlinked mentions groups and their cards, for one note. Hosted at the bottom of a
 // note (view.ts) or in the sidebar (sidebar.ts).
 
 import {
@@ -14,7 +14,7 @@ import {
 } from "obsidian";
 import {
 	findBacklinkSources,
-	findCreatedOnDay,
+	findCreatedIn,
 	findUnlinked,
 	isExcluded,
 	loadExcerpts,
@@ -52,7 +52,10 @@ export class BacklinksPanel extends Component implements HoverParent {
 	private readonly cardsEl: HTMLElement;
 	private readonly cards = new Map<string, Card>();
 	private readonly createdGroupEl: HTMLElement;
+	private readonly createdTitleEl: HTMLElement;
 	private readonly createdCountEl: HTMLElement;
+	/** Whether the created group is for a daily note's day or a weekly note's week. */
+	createdUnit: "day" | "week" = "day";
 	private readonly createdCardsEl: HTMLElement;
 	private readonly createdCards = new Map<string, Card>();
 	/** Notes created on the day of the current daily note; empty for other notes. */
@@ -85,7 +88,7 @@ export class BacklinksPanel extends Component implements HoverParent {
 		this.createdGroupEl = panelEl.createDiv({ cls: "better-backlinks-group" });
 		this.createdGroupEl.hide();
 		const createdHeaderEl = this.createdGroupEl.createDiv({ cls: "better-backlinks-header" });
-		createdHeaderEl.createDiv({ cls: "better-backlinks-title", text: "Created on this day" });
+		this.createdTitleEl = createdHeaderEl.createDiv({ cls: "better-backlinks-title", text: "Created on this day" });
 		this.createdCountEl = createdHeaderEl.createDiv({ cls: "better-backlinks-count" });
 		this.createdCardsEl = this.createdGroupEl.createDiv({ cls: "better-backlinks-cards" });
 		this.unlinkedGroupEl = panelEl.createDiv({ cls: "better-backlinks-group" });
@@ -141,9 +144,11 @@ export class BacklinksPanel extends Component implements HoverParent {
 			includeTitleMatches,
 		});
 		this.linkedSources = sources;
-		const day = this.plugin.dailyNoteDay(target);
-		this.createdSources = day
-			? findCreatedOnDay(this.app, target, day, this.plugin.settings.createdProperty.trim(), excludedFolders)
+		const period = this.plugin.periodFor(target);
+		this.createdUnit = period?.unit ?? "day";
+		this.createdTitleEl.setText(this.createdUnit === "week" ? "Created this week" : "Created on this day");
+		this.createdSources = period
+			? findCreatedIn(this.app, target, period.range, this.plugin.settings.createdProperty.trim(), excludedFolders)
 			: [];
 		this.startUnlinkedScan(target);
 		this.render();
@@ -510,8 +515,14 @@ class Card extends Component {
 		const label = "better-backlinks-card-meta-label";
 		if (source.kind === "created") {
 			// The group says when; the card says what time, if known.
-			if (source.created?.hasTime) {
-				this.metaEl.setText(new Date(source.created.time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }));
+			// Within a day, the time; within a week, the weekday too ("Mon 9:42 AM").
+			const created = source.created;
+			if (created) {
+				const date = new Date(created.time);
+				const parts: string[] = [];
+				if (this.panel.createdUnit === "week") parts.push(date.toLocaleDateString([], { weekday: "short" }));
+				if (created.hasTime) parts.push(date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }));
+				this.metaEl.setText(parts.join(" "));
 			}
 		} else if (titleMatch) {
 			this.metaEl.createSpan({ cls: label, text: "title match · " });

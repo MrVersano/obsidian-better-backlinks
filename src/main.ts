@@ -1,6 +1,13 @@
 import { debounce, MarkdownView, normalizePath, Notice, Plugin, TFile } from "obsidian";
 import { obsidianMoment } from "./backlink-index";
-import { dailyNoteDay, DEFAULT_DAILY_FORMAT, type DailyNoteConfig, type Day } from "./daily-notes";
+import {
+	DEFAULT_DAILY_FORMAT,
+	DEFAULT_WEEKLY_FORMAT,
+	periodicNoteRange,
+	periodicNotesWeekly,
+	type Period,
+	type PeriodicNoteConfig,
+} from "./periodic-notes";
 import { rememberSection } from "./navigate";
 import { pulseExtension } from "./pulse";
 import { BetterBacklinksSettingTab } from "./settings-tab";
@@ -30,7 +37,10 @@ export default class BetterBacklinksPlugin extends Plugin {
 	private coreNoticeShown = false;
 	private readonly sections = new Map<MarkdownView, BacklinksSection>();
 	/** Format and folder from Obsidian's core Daily notes plugin, read from its settings file. */
-	coreDailyNotes: DailyNoteConfig = { format: DEFAULT_DAILY_FORMAT, folder: "" };
+	coreDailyNotes: PeriodicNoteConfig = { format: DEFAULT_DAILY_FORMAT, folder: "" };
+	/** Weekly format and folder from the Periodic Notes plugin, when it's enabled with weekly notes on. */
+	periodicNotesWeekly: PeriodicNoteConfig | null = null;
+	private settingTab: BetterBacklinksSettingTab | null = null;
 
 	private readonly refreshAll = debounce(
 		() => {
@@ -53,7 +63,8 @@ export default class BetterBacklinksPlugin extends Plugin {
 		this.registerEditorExtension(pulseExtension);
 		this.registerMarkdownPostProcessor((el, ctx) => rememberSection(el, ctx));
 		this.registerHoverLinkSource(HOVER_SOURCE, { display: "Better Backlinks", defaultMod: true });
-		this.addSettingTab(new BetterBacklinksSettingTab(this.app, this));
+		this.settingTab = new BetterBacklinksSettingTab(this.app, this);
+		this.addSettingTab(this.settingTab);
 		this.registerView(SIDEBAR_VIEW, (leaf) => new BacklinksSidebarView(leaf, this));
 		this.addRibbonIcon("gallery-vertical-end", "Open backlinks sidebar", () => void this.openSidebar());
 		this.addCommand({
@@ -144,7 +155,7 @@ export default class BetterBacklinksPlugin extends Plugin {
 	}
 
 	/** The daily note settings in effect: this plugin's overrides, else Obsidian's. */
-	dailyNoteConfig(): DailyNoteConfig {
+	dailyNoteConfig(): PeriodicNoteConfig {
 		const { dailyNoteFormat, dailyNoteFolder } = this.settings;
 		const folder = dailyNoteFolder.trim() || this.coreDailyNotes.folder;
 		return {
@@ -153,41 +164,83 @@ export default class BetterBacklinksPlugin extends Plugin {
 		};
 	}
 
-	/** The day `file` is the daily note for, when "created on this day" is on; else null. */
-	dailyNoteDay(file: TFile): Day | null {
-		if (!this.settings.showCreatedOnDay) return null;
-		return dailyNoteDay(file.path, this.dailyNoteConfig(), obsidianMoment);
+	/** The weekly note settings in effect: this plugin's overrides, else Periodic Notes', else ISO weeks. */
+	weeklyNoteConfig(): PeriodicNoteConfig {
+		const { weeklyNoteFormat, weeklyNoteFolder } = this.settings;
+		const folder = weeklyNoteFolder.trim() || this.periodicNotesWeekly?.folder || "";
+		return {
+			format: weeklyNoteFormat.trim() || this.periodicNotesWeekly?.format || DEFAULT_WEEKLY_FORMAT,
+			folder: folder ? normalizePath(folder) : "",
+		};
+	}
+
+	/**
+	 * The day or week `file` is the periodic note for, when that kind's
+	 * "created" group is turned on; else null.
+	 */
+	periodFor(file: TFile): { unit: "day" | "week"; range: Period } | null {
+		if (this.settings.showCreatedOnDay) {
+			const range = periodicNoteRange(file.path, this.dailyNoteConfig(), "day", obsidianMoment);
+			if (range) return { unit: "day", range };
+		}
+		if (this.settings.showCreatedThisWeek) {
+			const range = periodicNoteRange(file.path, this.weeklyNoteConfig(), "week", obsidianMoment);
+			if (range) return { unit: "week", range };
+		}
+		return null;
 	}
 
 	private loadingCoreDailyNotes: Promise<void> | null = null;
 
-	/** Re-reads Obsidian's Daily notes settings; overlapping calls share one read. */
-	private loadCoreDailyNotes(): Promise<void> {
-		this.loadingCoreDailyNotes ??= this.readCoreDailyNotes().finally(() => {
+	/** Re-reads Obsidian's Daily notes and Periodic Notes settings; overlapping calls share one read. */
+	private loadPeriodicSettings(): Promise<void> {
+		this.loadingCoreDailyNotes ??= this.readPeriodicSettings().finally(() => {
 			this.loadingCoreDailyNotes = null;
 		});
 		return this.loadingCoreDailyNotes;
 	}
 
 	/**
-	 * Reads Obsidian's core Daily notes settings (.obsidian/daily-notes.json).
-	 * Missing or unreadable settings mean Obsidian's defaults.
+	 * Reads Obsidian's core Daily notes settings (.obsidian/daily-notes.json)
+	 * and, when the Periodic Notes plugin is enabled, its weekly settings.
+	 * Missing or unreadable settings mean the defaults.
 	 */
-	private async readCoreDailyNotes() {
-		const next: DailyNoteConfig = { format: DEFAULT_DAILY_FORMAT, folder: "" };
-		try {
-			const path = normalizePath(`${this.app.vault.configDir}/daily-notes.json`);
-			if (await this.app.vault.adapter.exists(path)) {
-				const data = JSON.parse(await this.app.vault.adapter.read(path)) as { format?: unknown; folder?: unknown };
-				if (typeof data.format === "string" && data.format.trim()) next.format = data.format.trim();
-				if (typeof data.folder === "string") next.folder = data.folder.trim();
-			}
-		} catch {
-			// Keep the defaults.
+	private async readPeriodicSettings() {
+		const daily: PeriodicNoteConfig = { format: DEFAULT_DAILY_FORMAT, folder: "" };
+		const data = await this.readConfigJson("daily-notes.json");
+		if (data && typeof data === "object") {
+			const { format, folder } = data as { format?: unknown; folder?: unknown };
+			if (typeof format === "string" && format.trim()) daily.format = format.trim();
+			if (typeof folder === "string") daily.folder = folder.trim();
 		}
-		if (next.format === this.coreDailyNotes.format && next.folder === this.coreDailyNotes.folder) return;
-		this.coreDailyNotes = next;
+
+		const enabledPlugins = await this.readConfigJson("community-plugins.json");
+		const periodicEnabled = Array.isArray(enabledPlugins) && enabledPlugins.includes("periodic-notes");
+		const weekly = periodicEnabled
+			? periodicNotesWeekly(await this.readConfigJson("plugins/periodic-notes/data.json"))
+			: null;
+
+		const same = (a: PeriodicNoteConfig | null, b: PeriodicNoteConfig | null) =>
+			a?.format === b?.format && a?.folder === b?.folder;
+		if (same(daily, this.coreDailyNotes) && same(weekly, this.periodicNotesWeekly)) return;
+		this.coreDailyNotes = daily;
+		this.periodicNotesWeekly = weekly;
 		for (const panel of this.panels()) panel.refresh();
+		// Obsidian 1.13+ caches the declarative settings, whose placeholders show
+		// these values; ask it to read them again. Older versions redraw each time.
+		const tab = this.settingTab as { update?: () => void } | null;
+		if (typeof tab?.update === "function") tab.update();
+	}
+
+	/** Parses a JSON file in the vault's config folder; null if missing or unreadable. */
+	private async readConfigJson(relativePath: string): Promise<unknown> {
+		try {
+			const path = normalizePath(`${this.app.vault.configDir}/${relativePath}`);
+			if (!(await this.app.vault.adapter.exists(path))) return null;
+			return JSON.parse(await this.app.vault.adapter.read(path)) as unknown;
+		} catch {
+			return null;
+		}
 	}
 
 	getCollapsed(target: string, source: string): boolean | undefined {
@@ -231,7 +284,7 @@ export default class BetterBacklinksPlugin extends Plugin {
 	private syncViews() {
 		// Obsidian's Daily notes settings live outside the vault's files and send
 		// no events, so re-read them whenever the views change.
-		void this.loadCoreDailyNotes();
+		void this.loadPeriodicSettings();
 		const views = new Set<MarkdownView>();
 		for (const leaf of this.app.workspace.getLeavesOfType("markdown")) {
 			if (!(leaf.view instanceof MarkdownView)) continue;

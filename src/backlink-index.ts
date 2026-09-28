@@ -2,7 +2,7 @@
 // Uses only the public metadataCache API; no DOM.
 
 import { getLinkpath, moment, type App, type FrontmatterLinkCache, type Pos, type TFile } from "obsidian";
-import { createdAt, type CreatedAt, type Day, type MomentFn } from "./daily-notes";
+import { createdAt, type CreatedAt, type MomentFn, type Period } from "./periodic-notes";
 
 // Obsidian's typings declare its bundled moment as a namespace, which isn't
 // callable under TypeScript's default module interop; at runtime it is the
@@ -109,14 +109,15 @@ export async function scanUnlinked(
 }
 
 /**
- * Notes created on `day`, going by `property` when a note has it and the
- * file's creation date otherwise. Reads only the metadata cache and file
- * stats, so it's quick even in a large vault.
+ * Notes created during `period` (a daily note's day or a weekly note's week),
+ * going by `property` when a note has it and the file's creation date
+ * otherwise. Reads only the metadata cache and file stats, so it's quick even
+ * in a large vault.
  */
-export function findCreatedOnDay(
+export function findCreatedIn(
 	app: App,
 	target: TFile,
-	day: Day,
+	period: Period,
 	property: string,
 	excludedFolders: string[],
 ): BacklinkSource[] {
@@ -125,7 +126,7 @@ export function findCreatedOnDay(
 		if (file === target || isExcluded(file.path, excludedFolders)) continue;
 		const frontmatter = app.metadataCache.getFileCache(file)?.frontmatter;
 		const created = createdAt(frontmatter, property, file.stat.ctime, obsidianMoment);
-		if (created.time < day.start || created.time >= day.end) continue;
+		if (created.time < period.start || created.time >= period.end) continue;
 		sources.push({
 			kind: "created",
 			file,

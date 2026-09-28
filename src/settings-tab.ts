@@ -8,6 +8,7 @@ import {
 } from "obsidian";
 import type BetterBacklinksPlugin from "./main";
 import type { BetterBacklinksSettings } from "./settings";
+import { DEFAULT_WEEKLY_FORMAT } from "./periodic-notes";
 import { isSortOrder, SORT_ORDERS } from "./sort";
 
 type Key = keyof BetterBacklinksSettings;
@@ -27,6 +28,7 @@ export class BetterBacklinksSettingTab extends PluginSettingTab {
 
 	override getSettingDefinitions(): SettingDefinitionItem<Key>[] {
 		const core = this.plugin.coreDailyNotes;
+		const weekly = this.plugin.periodicNotesWeekly;
 		return [
 			{
 				name: "Show backlinks section",
@@ -83,6 +85,17 @@ export class BetterBacklinksSettingTab extends PluginSettingTab {
 			},
 			{
 				type: "group",
+				heading: "Creation dates",
+				items: [
+					{
+						name: "Created date property",
+						desc: "A property that records when a note was created, used instead of the file's date when present. File dates can change when notes are synced, copied or restored. Used by the daily and weekly notes groups.",
+						control: { type: "text", key: "createdProperty", placeholder: "created" },
+					},
+				],
+			},
+			{
+				type: "group",
 				heading: "Daily notes",
 				items: [
 					{
@@ -100,10 +113,34 @@ export class BetterBacklinksSettingTab extends PluginSettingTab {
 						desc: "Where daily notes are kept. Leave empty to use the folder from Obsidian's daily notes settings.",
 						control: { type: "text", key: "dailyNoteFolder", placeholder: core.folder || "Anywhere in the vault" },
 					},
+				],
+			},
+			{
+				type: "group",
+				heading: "Weekly notes",
+				items: [
 					{
-						name: "Created date property",
-						desc: "A property that records when a note was created, used instead of the file's date when present. File dates can change when notes are synced, copied or restored.",
-						control: { type: "text", key: "createdProperty", placeholder: "created" },
+						name: "Show notes created this week",
+						desc: "On a weekly note, list the notes created during that week in their own group, each with a preview of how it starts.",
+						control: { type: "toggle", key: "showCreatedThisWeek" },
+					},
+					{
+						name: "Week format",
+						desc: weekly
+							? "How weekly notes are named. Leave empty to use the format from the periodic notes plugin."
+							: "How weekly notes are named. Leave empty for ISO weeks, such as 2026-W40.",
+						control: { type: "text", key: "weeklyNoteFormat", placeholder: weekly?.format ?? DEFAULT_WEEKLY_FORMAT },
+					},
+					{
+						name: "Folder",
+						desc: weekly
+							? "Where weekly notes are kept. Leave empty to use the folder from the periodic notes plugin."
+							: "Where weekly notes are kept. Leave empty to find them anywhere in the vault.",
+						control: {
+							type: "text",
+							key: "weeklyNoteFolder",
+							placeholder: weekly?.folder || "Anywhere in the vault",
+						},
 					},
 				],
 			},
@@ -127,12 +164,14 @@ export class BetterBacklinksSettingTab extends PluginSettingTab {
 					.map((folder) => normalizePath(folder));
 				break;
 			case "dailyNoteFormat":
+			case "weeklyNoteFormat":
 			case "createdProperty":
-				settings[key as "dailyNoteFormat" | "createdProperty"] = String(value).trim();
+				settings[key as "dailyNoteFormat" | "weeklyNoteFormat" | "createdProperty"] = String(value).trim();
 				break;
-			case "dailyNoteFolder": {
+			case "dailyNoteFolder":
+			case "weeklyNoteFolder": {
 				const folder = String(value).trim();
-				settings.dailyNoteFolder = folder ? normalizePath(folder) : "";
+				settings[key as "dailyNoteFolder" | "weeklyNoteFolder"] = folder ? normalizePath(folder) : "";
 				break;
 			}
 			case "defaultSort":
