@@ -25,7 +25,11 @@ export function sortLabel(order: SortOrder): string {
 
 interface Sortable {
 	file: { basename: string; path: string; stat: { mtime: number; ctime: number } };
+	/** Creation time from the note's created property, when known; it beats the file date. */
+	created?: { time: number };
 }
+
+const createdTime = (s: Sortable) => s.created?.time ?? s.file.stat.ctime;
 
 // "Note 2" before "Note 10", and case doesn't split otherwise equal names.
 const byName = (a: Sortable, b: Sortable) =>
@@ -44,8 +48,8 @@ export function compareBy(order: SortOrder): (a: Sortable, b: Sortable) => numbe
 		case "modified-asc":
 			return (a, b) => a.file.stat.mtime - b.file.stat.mtime || byName(a, b);
 		case "created-desc":
-			return (a, b) => b.file.stat.ctime - a.file.stat.ctime || byName(a, b);
+			return (a, b) => createdTime(b) - createdTime(a) || byName(a, b);
 		case "created-asc":
-			return (a, b) => a.file.stat.ctime - b.file.stat.ctime || byName(a, b);
+			return (a, b) => createdTime(a) - createdTime(b) || byName(a, b);
 	}
 }

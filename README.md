@@ -40,11 +40,15 @@ Once a note is linked, its card moves up into the backlinks. Mentions are matche
 
 Daily and weekly notes can list the notes created during their day or week, in a **Created on this day** or **Created this week** group. Both are off by default; turn them on under **Daily notes** and **Weekly notes** in the settings.
 
-The notes appear in the order they were created, with the time (and, on a weekly note, the weekday). Each card previews how the note starts.
+Each card shows when the note was created (the time, and on a weekly note the weekday too) and previews how the note starts. Like every group, they follow the sort order; choose **Created (oldest first)** to read the day or week in the order it was written.
 
 - **Recognizing daily notes:** by default the plugin uses the date format and folder from Obsidian's Daily notes settings. If you use another plugin for daily notes, set **Date format** and **Folder** under **Daily notes**.
 - **Recognizing weekly notes:** Obsidian has no built-in weekly notes. If the Periodic Notes plugin is on with weekly notes turned on, its format and folder are used. Otherwise weekly notes are named by ISO week, such as `2026-W40`, in any folder. Either way you can set **Week format** and **Folder** under **Weekly notes**. ISO tokens (`GGGG`, `WW`) give Monday-to-Sunday weeks; locale tokens (`gggg`, `ww`) follow your locale's first day of the week.
 - **Creation dates:** a note's creation date comes from its `created` property (for example `created: 2026-09-24` or `created: 2026-09-24T09:42`) when it has one, and from the file otherwise. File dates can change when notes are synced, copied or restored; a property doesn't. You can change which property is used under **Creation dates**.
+
+### One list or groups
+
+By default, backlinks, notes created on the day or week, and unlinked mentions appear in separate groups. Turn on **Show everything in one list** to see them together in a single list, in the note's sort order, without group headings. A note that would appear in several groups gets one card that combines them, for example "1 mention · 1 unlinked · created 9:42 AM", with its excerpts and **Link** buttons together.
 
 ## Where it shows
 
@@ -79,9 +83,9 @@ Everything takes its colours and fonts from your theme, in light and dark mode.
 
 ### Sorting
 
-Cards are sorted by modified date, newest first, unless you choose otherwise. The sort button in the Backlinks header offers name (A to Z or Z to A), modified date and created date (newest or oldest first). The order applies to the backlinks and the unlinked mentions. Blocks inside a card stay in the order they appear in the note, and notes created on a day or week are always listed in the order they were created.
+Cards are sorted by modified date, newest first, unless you choose otherwise. The sort button in the Backlinks header offers name (A to Z or Z to A), modified date and created date (newest or oldest first). The order applies to every group (backlinks, notes created on the day or week, and unlinked mentions) and to the whole list when everything is shown in one list. Blocks inside a card stay in the order they appear in the note.
 
-The order you pick is saved for the note you're viewing. Other notes keep the default, which you can change in the settings. To make a note follow the default again, choose **Use default** in its sort menu. When sorting by created date, cards show when each note was created instead of when it was modified.
+The order you pick is saved for the note you're viewing. Other notes keep the default, which you can change in the settings. To make a note follow the default again, choose **Use default** in its sort menu. When sorting by created date, cards show when each note was created instead of when it was modified. Created dates come from a note's `created` property when it has one, and from the file otherwise.
 
 ## Installing
 
@@ -104,6 +108,7 @@ Better Backlinks works on desktop and mobile and needs Obsidian 1.7.2 or later.
 | Include links in properties | On | Counts links in a note's properties as backlinks. Turn it off to count links in the note body only. |
 | Include title matches | On | Shows notes whose title contains this note's name, even without a link. |
 | Show unlinked mentions | On | Lists notes that mention this note's name as plain text, with buttons to link them. |
+| Show everything in one list | Off | Combines backlinks, notes created on the day or week, and unlinked mentions into one list, with one card per note. |
 | Excluded folders | None | Notes in these folders never appear, for example `Templates`. One folder per line. |
 
 **Creation dates**

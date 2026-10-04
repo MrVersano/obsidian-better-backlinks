@@ -79,6 +79,11 @@ export class BetterBacklinksSettingTab extends PluginSettingTab {
 				control: { type: "toggle", key: "showUnlinkedMentions" },
 			},
 			{
+				name: "Show everything in one list",
+				desc: "Combine backlinks, notes created that day or week, and unlinked mentions into a single list without group headings. A note that would appear in several groups gets one card.",
+				control: { type: "toggle", key: "combineGroups" },
+			},
+			{
 				name: "Excluded folders",
 				desc: "Notes in these folders never appear as backlinks, for example your templates folder. One folder per line.",
 				control: { type: "textarea", key: "excludedFolders", placeholder: "Templates" },

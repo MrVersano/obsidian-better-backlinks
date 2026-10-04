@@ -19,6 +19,7 @@ import {
 	isExcluded,
 	loadExcerpts,
 	mentionCount,
+	type CardExcerpt,
 	resolvesTo,
 	scanUnlinked,
 	type BacklinkSource,
@@ -29,6 +30,7 @@ import { linkMentions } from "./link-mention";
 import type BetterBacklinksPlugin from "./main";
 import { openMention, openProperty } from "./navigate";
 import { propertyRows } from "./properties";
+import { combineSources } from "./combine";
 import { compareBy, SORT_ORDERS, sortLabel } from "./sort";
 
 export const HOVER_SOURCE = "better-backlinks";
@@ -198,10 +200,7 @@ export class BacklinksPanel extends Component implements HoverParent {
 		const compare = compareBy(this.plugin.getSort(target.path));
 		const linked = [...this.linkedSources].sort(compare);
 		const unlinked = [...this.unlinkedSources.values()].sort(compare);
-		// A day's notes read best in the order they were written.
-		const created = [...this.createdSources].sort(
-			(a, b) => (a.created?.time ?? 0) - (b.created?.time ?? 0) || compareBy("name-asc")(a, b),
-		);
+		const created = [...this.createdSources].sort(compare);
 		this.sortEl.setAttr("aria-label", `Sort: ${sortLabel(this.plugin.getSort(target.path))}`);
 
 		const shown = linked.length > 0 || unlinked.length > 0 || created.length > 0;
@@ -210,25 +209,63 @@ export class BacklinksPanel extends Component implements HoverParent {
 			this.host.onRender(false);
 			return;
 		}
+		const { expandUpTo } = this.plugin.settings;
+
+		if (this.combined) {
+			// One list, one card per note, in the note's sort order.
+			const all = combineSources(linked, created, unlinked).sort(compare);
+			this.countEl.show();
+			this.countEl.setText(plural(all.length, "note"));
+			// Unlinked mentions are suggestions, so a card that's only that starts collapsed.
+			const unlinkedOnly = (s: BacklinkSource) => s.kind === "unlinked" && !s.created;
+			this.syncCards(this.cards, this.cardsEl, all, (s) => !unlinkedOnly(s) && all.length <= expandUpTo);
+			this.createdGroupEl.hide();
+			this.syncCards(this.createdCards, this.createdCardsEl, [], () => false);
+			this.unlinkedGroupEl.hide();
+			this.syncCards(this.unlinkedCards, this.unlinkedCardsEl, [], () => false);
+			this.updateToggleAll();
+			this.host.onRender(true);
+			return;
+		}
+
 		this.countEl.toggle(linked.length > 0);
 		this.countEl.setText(plural(linked.length, "note"));
-		this.syncCards(this.cards, this.cardsEl, linked, linked.length <= this.plugin.settings.expandUpTo);
+		this.syncCards(this.cards, this.cardsEl, linked, () => linked.length <= expandUpTo);
 
 		this.createdGroupEl.toggle(created.length > 0);
 		this.createdCountEl.setText(plural(created.length, "note"));
-		this.syncCards(this.createdCards, this.createdCardsEl, created, created.length <= this.plugin.settings.expandUpTo);
+		this.syncCards(this.createdCards, this.createdCardsEl, created, () => created.length <= expandUpTo);
 
 		this.unlinkedGroupEl.toggle(unlinked.length > 0);
 		this.unlinkedCountEl.setText(plural(unlinked.length, "note"));
 		// Unlinked mentions are suggestions, so their cards start collapsed.
-		this.syncCards(this.unlinkedCards, this.unlinkedCardsEl, unlinked, false);
+		this.syncCards(this.unlinkedCards, this.unlinkedCardsEl, unlinked, () => false);
 
 		this.updateToggleAll();
 		this.host.onRender(true);
 	}
 
+	/** Whether backlinks, created-in-period notes and unlinked mentions show as one list. */
+	get combined(): boolean {
+		return this.plugin.settings.combineGroups;
+	}
+
+	/**
+	 * A card's key in the saved collapse state. In the combined list each note
+	 * has one card and so one key; in groups, unlinked and created cards are
+	 * kept apart from a note's backlink card.
+	 */
+	collapseIdFor(source: BacklinkSource): string {
+		return this.combined ? source.file.path : collapseId(source);
+	}
+
 	/** Brings one group's cards in line with `sources`: adds, updates, reorders and removes. */
-	private syncCards(cards: Map<string, Card>, containerEl: HTMLElement, sources: BacklinkSource[], expandByDefault: boolean) {
+	private syncCards(
+		cards: Map<string, Card>,
+		containerEl: HTMLElement,
+		sources: BacklinkSource[],
+		expandByDefault: (source: BacklinkSource) => boolean,
+	) {
 		const target = this.target;
 		if (!target) return;
 		const seen = new Set<string>();
@@ -237,8 +274,8 @@ export class BacklinksPanel extends Component implements HoverParent {
 			seen.add(path);
 			let card = cards.get(path);
 			if (!card) {
-				const collapsed = this.plugin.getCollapsed(target.path, collapseId(source));
-				card = this.addChild(new Card(this, source, collapsed === undefined ? expandByDefault : !collapsed));
+				const collapsed = this.plugin.getCollapsed(target.path, this.collapseIdFor(source));
+				card = this.addChild(new Card(this, source, collapsed === undefined ? expandByDefault(source) : !collapsed));
 				cards.set(path, card);
 			} else {
 				card.update(source);
@@ -257,7 +294,7 @@ export class BacklinksPanel extends Component implements HoverParent {
 	syncCollapsed() {
 		if (!this.target) return;
 		for (const card of this.allCards()) {
-			const collapsed = this.plugin.getCollapsed(this.target.path, collapseId(card.source));
+			const collapsed = this.plugin.getCollapsed(this.target.path, this.collapseIdFor(card.source));
 			if (collapsed !== undefined) card.setExpanded(!collapsed);
 		}
 		this.updateToggleAll();
@@ -310,7 +347,7 @@ export class BacklinksPanel extends Component implements HoverParent {
 	}
 
 	onCardToggled(card: Card) {
-		if (this.target) this.plugin.setCollapsed(this.target.path, [[collapseId(card.source), !card.expanded]]);
+		if (this.target) this.plugin.setCollapsed(this.target.path, [[this.collapseIdFor(card.source), !card.expanded]]);
 	}
 
 	private allCards(): Card[] {
@@ -349,7 +386,7 @@ export class BacklinksPanel extends Component implements HoverParent {
 		if (this.target) {
 			this.plugin.setCollapsed(
 				this.target.path,
-				cards.map((c) => [collapseId(c.source), !expand]),
+				cards.map((c) => [this.collapseIdFor(c.source), !expand]),
 			);
 		}
 	}
@@ -433,7 +470,7 @@ class Card extends Component {
 	private readonly mentionByEl = new WeakMap<HTMLElement, Mention>();
 	private readonly propertyKeyByEl = new WeakMap<HTMLElement, string>();
 	private readonly linkButtonMention = new WeakMap<HTMLElement, Mention>();
-	private linkAllEl: HTMLElement | null = null;
+	private readonly linkAllEl: HTMLElement;
 	private readonly taskLineByEl = new WeakMap<HTMLElement, number>();
 
 	constructor(
@@ -447,13 +484,13 @@ class Card extends Component {
 		headerEl.createSpan({ cls: "better-backlinks-card-hash", text: "#" });
 		this.titleEl = headerEl.createEl("a", { cls: "better-backlinks-card-title" });
 		this.metaEl = headerEl.createSpan({ cls: "better-backlinks-card-meta" });
-		if (source.kind === "unlinked") {
-			this.linkAllEl = headerEl.createEl("button", { cls: "better-backlinks-link-all", text: "Link all" });
-			this.registerDomEvent(this.linkAllEl, "click", (evt) => {
-				evt.stopPropagation();
-				void this.linkAll();
-			});
-		}
+		// Shown when the note has plain-text mentions; a combined card can gain or lose them.
+		this.linkAllEl = headerEl.createEl("button", { cls: "better-backlinks-link-all", text: "Link all" });
+		this.linkAllEl.hide();
+		this.registerDomEvent(this.linkAllEl, "click", (evt) => {
+			evt.stopPropagation();
+			void this.linkAll();
+		});
 		this.chevronEl = headerEl.createDiv({ cls: "better-backlinks-card-chevron" });
 		// The wrap animates its grid row between 0fr and 1fr; the clip hides the
 		// padded body while it shrinks.
@@ -487,9 +524,18 @@ class Card extends Component {
 		this.el.remove();
 	}
 
-	/** A card for a title match has nothing to expand: it's just the header strip. */
+	/**
+	 * A card that's only a title match has nothing to expand: it's just the
+	 * header strip. In the combined list the same note may also have unlinked
+	 * mentions or have been created in the period, which give it a body.
+	 */
 	get expandable(): boolean {
-		return this.source.titleMatch === null;
+		const { titleMatch, unlinked, created } = this.source;
+		return !(titleMatch && mentionCount(this.source) === 0 && !unlinked?.length && !created);
+	}
+
+	private get hasUnlinked(): boolean {
+		return this.source.kind === "unlinked" || (this.source.unlinked?.length ?? 0) > 0;
 	}
 
 	update(source: BacklinkSource) {
@@ -514,30 +560,44 @@ class Card extends Component {
 		// shows just its age.
 		this.metaEl.empty();
 		const label = "better-backlinks-card-meta-label";
-		if (source.kind === "created") {
-			// The group says when; the card says what time, if known.
-			// Within a day, the time; within a week, the weekday too ("Mon 9:42 AM").
-			const created = source.created;
-			if (created) {
-				const date = new Date(created.time);
-				const parts: string[] = [];
-				if (this.panel.createdUnit === "week") parts.push(date.toLocaleDateString([], { weekday: "short" }));
-				if (created.hasTime) parts.push(date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }));
-				this.metaEl.setText(parts.join(" "));
-			}
-		} else if (titleMatch) {
-			this.metaEl.createSpan({ cls: label, text: "title match · " });
-		} else {
-			const count = mentionCount(source);
-			const noun = source.kind === "unlinked" ? "unlinked mention" : "mention";
-			this.metaEl.appendText(String(count));
-			this.metaEl.createSpan({ cls: label, text: ` ${plural(count, noun).replace(/^\d+ /, "")}` });
+		// Within a day, the time; within a week, the weekday too ("Mon 9:42 AM").
+		const createdText = source.created ? this.createdText(source.created) : "";
+		const count = (n: number, noun: string) => {
+			this.metaEl.appendText(String(n));
+			this.metaEl.createSpan({ cls: label, text: ` ${plural(n, noun).replace(/^\d+ /, "")}` });
 			this.metaEl.appendText(" · ");
+		};
+		if (source.kind === "created" && !this.panel.combined) {
+			// The group says when; the card says what time, if known.
+			this.metaEl.setText(createdText);
+		} else {
+			if (source.kind === "created") {
+				// Only here for being created in the period.
+			} else if (titleMatch && mentionCount(source) === 0) {
+				this.metaEl.createSpan({ cls: label, text: "title match · " });
+			} else {
+				count(mentionCount(source), source.kind === "unlinked" ? "unlinked mention" : "mention");
+			}
+			if (source.unlinked?.length) count(source.unlinked.length, "unlinked");
+			if (source.created && createdText) {
+				this.metaEl.createSpan({ cls: label, text: "created " });
+				this.metaEl.appendText(`${createdText} · `);
+			}
+			this.metaEl.appendText(age);
 		}
-		if (source.kind !== "created") this.metaEl.appendText(age);
+		this.linkAllEl.toggle(this.hasUnlinked);
 
 		if (wasExpandable !== this.expandable) this.applyExpanded();
 		else if (this.expanded && this.expandable && this.renderedSignature !== signature(source)) void this.renderBody();
+	}
+
+	/** "9:42 AM" for a day, "Mon 9:42 AM" for a week; no time when the date had none. */
+	private createdText(created: { time: number; hasTime: boolean }): string {
+		const date = new Date(created.time);
+		const parts: string[] = [];
+		if (this.panel.createdUnit === "week") parts.push(date.toLocaleDateString([], { weekday: "short" }));
+		if (created.hasTime) parts.push(date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }));
+		return parts.join(" ");
 	}
 
 	setExpanded(expanded: boolean) {
@@ -563,11 +623,11 @@ class Card extends Component {
 	async linkAll() {
 		const target = this.panel.getTarget();
 		if (!target) return;
-		this.linkAllEl?.setAttr("disabled", "true");
+		this.linkAllEl.setAttr("disabled", "true");
 		// Use the mentions as they are now, not as they were when the card rendered.
 		const fresh = await findUnlinked(this.panel.app, this.source.file, target);
 		if (fresh) await linkMentions(this.panel.app, this.source.file, target, fresh.mentions);
-		this.linkAllEl?.removeAttribute("disabled");
+		this.linkAllEl.removeAttribute("disabled");
 	}
 
 	/** The property a highlighted property link sits in, if `el` is one. */
@@ -634,12 +694,12 @@ class Card extends Component {
 		const fragment = createDiv();
 		// Property links sit above the body excerpts and don't count toward the limit.
 		if (source.propertyMentions.length > 0) this.renderProperties(fragment, target);
-		for (const excerpt of shown) {
+		for (const { excerpt, kind } of shown) {
 			const excerptEl = fragment.createDiv({ cls: "better-backlinks-excerpt markdown-rendered" });
 			await MarkdownRenderer.render(this.panel.app, excerpt.markdown, excerptEl, source.file.path, component);
-			this.decorate(excerptEl, excerpt, target);
+			this.decorate(excerptEl, excerpt, kind, target);
 		}
-		if (source.kind === "created" && excerpts.length === 0) {
+		if (source.created && excerpts.length === 0 && source.propertyMentions.length === 0) {
 			fragment.createDiv({ cls: "better-backlinks-empty", text: "Empty note" });
 		}
 		const hidden = excerpts.length - shown.length;
@@ -691,16 +751,16 @@ class Card extends Component {
 		}
 	}
 
-	private decorate(el: HTMLElement, excerpt: Excerpt, target: TFile) {
+	private decorate(el: HTMLElement, excerpt: Excerpt, kind: CardExcerpt["kind"], target: TFile) {
 		const app = this.panel.app;
 		const sourcePath = this.source.file.path;
 
-		if (this.source.kind === "created") {
+		if (kind === "created") {
 			this.markTasks(el, excerpt);
 			return;
 		}
 
-		if (this.source.kind === "unlinked") {
+		if (kind === "unlinked") {
 			// Each plain-text mention gets a Link button after it; clicking the text jumps to it.
 			el.querySelectorAll<HTMLElement>(`span.${UNLINKED_CLASS}`).forEach((span) => {
 				const mention = excerpt.mentions[Number(span.dataset.mention)];
@@ -768,5 +828,7 @@ function signature(source: BacklinkSource): string {
 		...source.mentions.map((m) => m.position.start.offset),
 		...source.propertyMentions.map((m) => m.key),
 		source.titleMatch ? "title" : "",
+		...(source.unlinked ?? []).map((m) => `u${m.position.start.offset}`),
+		source.created ? `c${source.created.time}` : "",
 	].join("|");
 }

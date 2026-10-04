@@ -17,6 +17,8 @@ export interface BetterBacklinksSettings {
 	includeTitleMatches: boolean;
 	/** Show notes that mention this note's name as plain text, with a way to link them. */
 	showUnlinkedMentions: boolean;
+	/** Show backlinks, created-in-period notes and unlinked mentions as one list, one card per note. */
+	combineGroups: boolean;
 	excludedFolders: string[];
 	/** Daily notes: show notes created on the day a daily note is for. */
 	showCreatedOnDay: boolean;
@@ -44,6 +46,7 @@ export const DEFAULT_SETTINGS: BetterBacklinksSettings = {
 	includePropertyLinks: true,
 	includeTitleMatches: true,
 	showUnlinkedMentions: true,
+	combineGroups: false,
 	excludedFolders: [],
 	showCreatedOnDay: false,
 	dailyNoteFormat: "",

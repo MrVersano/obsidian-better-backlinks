@@ -29,8 +29,19 @@ export interface BacklinkSource {
 	propertyMentions: FrontmatterLinkCache[];
 	/** Set when the source has no links here but its title contains the current note's name. */
 	titleMatch: TitleMatch | null;
-	/** For "created" sources, when the note was created. */
+	/** When the note was created, if it was created during the current periodic note's day or week. */
 	created?: CreatedAt;
+	/**
+	 * Plain-text mentions in a note that also links here or appears for
+	 * another reason; only set when everything is shown in one combined list.
+	 */
+	unlinked?: Mention[];
+}
+
+/** An excerpt for a card, with the kind of content it shows. */
+export interface CardExcerpt {
+	excerpt: Excerpt;
+	kind: "linked" | "unlinked" | "created";
 }
 
 export interface FindOptions {
@@ -150,21 +161,35 @@ export async function findUnlinked(app: App, file: TFile, target: TFile): Promis
 	return { kind: "unlinked", file, mentions, targetEmbeds: [], propertyMentions: [], titleMatch: null };
 }
 
-/** Reads the source note and builds its excerpts. */
-export async function loadExcerpts(app: App, source: BacklinkSource, target: TFile): Promise<Excerpt[]> {
+/**
+ * Reads the source note and builds its card's excerpts: the blocks around its
+ * links, then the blocks around its plain-text mentions, or, when it has
+ * neither, a preview of how it starts if it's there for being created in the
+ * current periodic note's day or week.
+ */
+export async function loadExcerpts(app: App, source: BacklinkSource, target: TFile): Promise<CardExcerpt[]> {
 	const cache = app.metadataCache.getFileCache(source.file);
 	if (!cache) return [];
 	const text = await app.vault.cachedRead(source.file);
-	if (source.kind === "created") {
-		const start = noteStartExcerpt(text, cache);
-		return start ? [start] : [];
+	const excerpts: CardExcerpt[] = [];
+
+	if (source.kind === "linked") {
+		for (const excerpt of extractExcerpts(text, cache, source.mentions, source.targetEmbeds)) {
+			excerpts.push({ excerpt, kind: "linked" });
+		}
 	}
-	if (source.kind === "unlinked") {
+	if (source.kind === "unlinked" || source.unlinked?.length) {
 		// Find the mentions again in the text being rendered, in case it changed since the scan.
 		const mentions = findUnlinkedMentions(text, cache, target.basename);
-		return extractExcerpts(text, cache, mentions, [], { markMentions: true });
+		for (const excerpt of extractExcerpts(text, cache, mentions, [], { markMentions: true })) {
+			excerpts.push({ excerpt, kind: "unlinked" });
+		}
 	}
-	return extractExcerpts(text, cache, source.mentions, source.targetEmbeds);
+	if (source.created && excerpts.length === 0 && source.propertyMentions.length === 0) {
+		const start = noteStartExcerpt(text, cache);
+		if (start) excerpts.push({ excerpt: start, kind: "created" });
+	}
+	return excerpts;
 }
 
 /** True when `linktext` (as written in `sourcePath`) resolves to `target`. */
