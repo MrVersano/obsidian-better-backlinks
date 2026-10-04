@@ -74,7 +74,7 @@ Everything takes its colours and fonts from your theme, in light and dark mode.
 - **Click a highlighted link** to jump to that exact spot in the source note. The link is selected and briefly flashes so you can find it.
 - **Click a highlighted property link** to open the source note with that property flashing.
 - **Tick a checkbox** in an excerpt to update the task in the source note. Apart from **Link** on unlinked mentions, this is the only change the plugin makes to your notes.
-- **Click a card's header** to collapse or expand it, or use **Collapse all / Expand all** for the backlink cards. Each card remembers its state for the note you're viewing.
+- **Click a card's header** to collapse or expand it, or use **Collapse all / Expand all** in the Backlinks header for every card in the note: backlinks, notes created that day or week, and unlinked mentions. Each card remembers its state for the note you're viewing.
 - **Hover a title or link** while holding Cmd/Ctrl to see a Page Preview popover. You can change whether the modifier is needed under **Settings → Core plugins → Page preview → Better Backlinks**.
 
 ### Sorting

@@ -328,11 +328,12 @@ export class BacklinksPanel extends Component implements HoverParent {
 	}
 
 	/**
-	 * Collapse all / Expand all covers the linked cards: title-match cards have
-	 * no body, and unlinked mentions are suggestions the user opens one by one.
+	 * Collapse all / Expand all covers every card in the note that can expand:
+	 * backlinks, notes created that day or week, and unlinked mentions.
+	 * Title-match cards have no body, so they're left out.
 	 */
 	private expandableCards(): Card[] {
-		return [...this.cards.values()].filter((c) => c.expandable);
+		return this.allCards().filter((c) => c.expandable);
 	}
 
 	private updateToggleAll() {
