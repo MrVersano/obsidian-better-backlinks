@@ -340,15 +340,6 @@
 	vertical-align: baseline;
 }
 
-/* Ancestor list items are context, not the match. */
-.better-backlinks-excerpt li.better-backlinks-context {
-	color: var(--text-muted);
-}
-
-.better-backlinks-excerpt li.better-backlinks-match {
-	color: var(--text-normal);
-}
-
 .better-backlinks-excerpt .better-backlinks-mention {
 	/* Themes written for older Obsidian set --text-highlight-bg; current
 	   Obsidian styles ==highlights== with --highlight-background. */

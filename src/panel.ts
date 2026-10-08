@@ -796,12 +796,6 @@ class Card extends Component {
 			if (mention) this.mentionByEl.set(a, mention);
 		});
 
-		if (excerpt.ancestorCount > 0) {
-			const items = el.querySelectorAll<HTMLElement>("li");
-			for (let i = 0; i < excerpt.ancestorCount; i++) items[i]?.addClass("better-backlinks-context");
-			items[excerpt.ancestorCount]?.addClass("better-backlinks-match");
-		}
-
 		this.markTasks(el, excerpt);
 	}
 

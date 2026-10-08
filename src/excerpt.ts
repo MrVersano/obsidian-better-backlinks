@@ -13,12 +13,10 @@ export interface Mention {
 }
 
 export interface Excerpt {
-	/** Markdown to render: ancestor context lines followed by the block itself. */
+	/** Markdown to render: the block the mentions sit in. */
 	markdown: string;
 	/** Source line for each excerpt line (`lineMap[i]` is the source line of excerpt line `i`). */
 	lineMap: number[];
-	/** How many list items at the top of the excerpt are ancestor context, outermost first. */
-	ancestorCount: number;
 	/** The mentions inside this excerpt, in document order. */
 	mentions: Mention[];
 	/**
@@ -29,7 +27,7 @@ export interface Excerpt {
 	anchors: (Mention | null)[];
 	/** Source lines of the task list items in the excerpt, in document order. */
 	taskLines: number[];
-	/** First and last source line of the block (excluding ancestor context). */
+	/** First and last source line of the block. */
 	startLine: number;
 	endLine: number;
 }
@@ -37,8 +35,6 @@ export interface Excerpt {
 interface Block {
 	start: number;
 	end: number;
-	/** Ancestor list items, outermost first; only set for nested list items. */
-	ancestors: ListItemCache[];
 	mentions: Mention[];
 }
 
@@ -74,7 +70,7 @@ export function extractExcerpts(
 	return mergeBlocks(blocks).map((block) => doc.toExcerpt(block, targetEmbeds, markMentions));
 }
 
-/** Merges blocks that overlap, keeping the outer block's ancestor context. */
+/** Merges blocks that overlap. */
 function mergeBlocks(blocks: Block[]): Block[] {
 	const sorted = [...blocks].sort((a, b) => a.start - b.start || b.end - a.end);
 	const merged: Block[] = [];
@@ -122,18 +118,18 @@ class DocStructure {
 		return this.sectionAt(line)?.type === "code";
 	}
 
-	/** The innermost block containing `line`, per the spec's table. */
+	/**
+	 * The block containing `line`: a heading's section, the whole top-level list
+	 * item (with everything nested under it) for a line in a list, or the section.
+	 */
 	blockAt(line: number): Omit<Block, "mentions"> | null {
 		const heading = this.headings.find((h) => h.position.start.line === line);
-		if (heading) return { start: line, end: this.headingSectionEnd(heading), ancestors: [] };
+		if (heading) return { start: line, end: this.headingSectionEnd(heading) };
 
 		const item = this.listItemAt(line);
 		if (item) {
-			return {
-				start: item.position.start.line,
-				end: this.subtreeEnd(item),
-				ancestors: this.ancestorsOf(item),
-			};
+			const root = this.rootOf(item);
+			return { start: root.position.start.line, end: this.subtreeEnd(root) };
 		}
 
 		const section = this.sectionAt(line);
@@ -141,18 +137,13 @@ class DocStructure {
 			return {
 				start: section.position.start.line,
 				end: this.trimBlankEnd(section.position.start.line, section.position.end.line),
-				ancestors: [],
 			};
 		}
-		return { start: line, end: line, ancestors: [] };
+		return { start: line, end: line };
 	}
 
 	toExcerpt(block: Block, targetEmbeds: Pos[], markMentions: boolean): Excerpt {
 		const lineMap: number[] = [];
-		for (const ancestor of block.ancestors) {
-			const [start, end] = this.ownLines(ancestor);
-			for (let l = start; l <= end; l++) lineMap.push(l);
-		}
 		for (let l = block.start; l <= block.end; l++) lineMap.push(l);
 
 		const markdown = lineMap
@@ -177,7 +168,6 @@ class DocStructure {
 		return {
 			markdown,
 			lineMap,
-			ancestorCount: block.ancestors.length,
 			mentions: block.mentions,
 			anchors,
 			taskLines,
@@ -228,10 +218,11 @@ class DocStructure {
 		return end;
 	}
 
-	private ancestorsOf(item: ListItemCache): ListItemCache[] {
-		const ancestors: ListItemCache[] = [];
-		for (let p = this.parentOf.get(item); p; p = this.parentOf.get(p)) ancestors.unshift(p);
-		return ancestors;
+	/** The outermost list item that `item` is nested under, or `item` itself. */
+	private rootOf(item: ListItemCache): ListItemCache {
+		let root = item;
+		for (let p = this.parentOf.get(root); p; p = this.parentOf.get(p)) root = p;
+		return root;
 	}
 
 	/**
@@ -314,7 +305,6 @@ export function noteStartExcerpt(
 	return {
 		markdown: lineMap.map((l) => (inCode(l) ? (lines[l] ?? "") : embedsAsLinks(lines[l] ?? ""))).join("\n"),
 		lineMap,
-		ancestorCount: 0,
 		mentions: [],
 		anchors: [],
 		taskLines: (cache.listItems ?? [])

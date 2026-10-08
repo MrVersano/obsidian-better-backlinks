@@ -13,7 +13,7 @@ It also finds notes that are related without linking: notes whose title contains
 One card per linking note, however many times it links here. The card shows the block the link sits in:
 
 - A link in a **heading** shows that heading's whole section.
-- A link in a **list item** shows the item and everything nested under it. When the item is nested, its parent items appear above it, dimmed, for context.
+- A link in a **list item** shows the whole top-level item it belongs to, with everything nested under it. A link in an indented bullet under a meeting shows the meeting bullet and all of its sub-bullets.
 - A link in a **paragraph**, **table**, **blockquote** or **callout** shows that block.
 - A link in a **property**, such as `related: "[[Project Phoenix]]"`, appears as a row at the top of the card, showing the property's name and all its values.
 - If several links fall in the same block, or one block contains another, they appear once, with every link highlighted.
