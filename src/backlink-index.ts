@@ -2,6 +2,7 @@
 // Uses only the public metadataCache API; no DOM.
 
 import { getLinkpath, moment, type App, type FrontmatterLinkCache, type Pos, type TFile } from "obsidian";
+import { isExcluded, type Exclusions } from "./exclusions";
 import { createdAt, type CreatedAt, type MomentFn, type Period } from "./periodic-notes";
 
 // Obsidian's typings declare its bundled moment as a namespace, which isn't
@@ -45,7 +46,7 @@ export interface CardExcerpt {
 }
 
 export interface FindOptions {
-	excludedFolders: string[];
+	excluded: Exclusions;
 	includePropertyLinks: boolean;
 	includeTitleMatches: boolean;
 }
@@ -67,7 +68,7 @@ export function findBacklinkSources(app: App, target: TFile, options: FindOption
 	const sources: BacklinkSource[] = [];
 	for (const [sourcePath, dests] of Object.entries(app.metadataCache.resolvedLinks)) {
 		if (!(target.path in dests) || sourcePath === target.path) continue;
-		if (isExcluded(sourcePath, options.excludedFolders)) continue;
+		if (isExcluded(sourcePath, options.excluded)) continue;
 
 		const file = app.vault.getFileByPath(sourcePath);
 		if (!file || file.extension !== "md") continue;
@@ -81,7 +82,7 @@ export function findBacklinkSources(app: App, target: TFile, options: FindOption
 		const linked = new Set(sources.map((s) => s.file.path));
 		const match = titleMatcher(target.basename);
 		for (const file of app.vault.getMarkdownFiles()) {
-			if (file === target || linked.has(file.path) || isExcluded(file.path, options.excludedFolders)) continue;
+			if (file === target || linked.has(file.path) || isExcluded(file.path, options.excluded)) continue;
 			const titleMatch = match(file.basename);
 			if (titleMatch) {
 				sources.push({ kind: "linked", file, mentions: [], targetEmbeds: [], propertyMentions: [], titleMatch });
@@ -102,13 +103,13 @@ const SCAN_BATCH = 100;
 export async function scanUnlinked(
 	app: App,
 	target: TFile,
-	excludedFolders: string[],
+	excluded: Exclusions,
 	onFound: (sources: BacklinkSource[]) => void,
 	cancelled: () => boolean,
 ): Promise<void> {
 	const files = app.vault
 		.getMarkdownFiles()
-		.filter((file) => file !== target && !isExcluded(file.path, excludedFolders));
+		.filter((file) => file !== target && !isExcluded(file.path, excluded));
 	for (let i = 0; i < files.length; i += SCAN_BATCH) {
 		if (cancelled()) return;
 		const batch = files.slice(i, i + SCAN_BATCH);
@@ -130,11 +131,11 @@ export function findCreatedIn(
 	target: TFile,
 	period: Period,
 	property: string,
-	excludedFolders: string[],
+	excluded: Exclusions,
 ): BacklinkSource[] {
 	const sources: BacklinkSource[] = [];
 	for (const file of app.vault.getMarkdownFiles()) {
-		if (file === target || isExcluded(file.path, excludedFolders)) continue;
+		if (file === target || isExcluded(file.path, excluded)) continue;
 		const frontmatter = app.metadataCache.getFileCache(file)?.frontmatter;
 		const created = createdAt(frontmatter, property, file.stat.ctime, obsidianMoment);
 		if (created.time < period.start || created.time >= period.end) continue;
@@ -219,11 +220,4 @@ function collectLinks(app: App, file: TFile, target: TFile, includePropertyLinks
 		: [];
 
 	return { kind: "linked", file, mentions, targetEmbeds, propertyMentions, titleMatch: null };
-}
-
-export function isExcluded(path: string, folders: string[]): boolean {
-	return folders.some((folder) => {
-		const prefix = folder.replace(/^\/+|\/+$/g, "");
-		return prefix !== "" && path.startsWith(prefix + "/");
-	});
 }

@@ -16,7 +16,6 @@ import {
 	findBacklinkSources,
 	findCreatedIn,
 	findUnlinked,
-	isExcluded,
 	loadExcerpts,
 	mentionCount,
 	type CardExcerpt,
@@ -24,6 +23,7 @@ import {
 	scanUnlinked,
 	type BacklinkSource,
 } from "./backlink-index";
+import { isExcluded } from "./exclusions";
 import { UNLINKED_CLASS, type Excerpt, type Mention } from "./excerpt";
 import { formatAge, plural, toggleTask } from "./format";
 import { linkMentions } from "./link-mention";
@@ -139,9 +139,10 @@ export class BacklinksPanel extends Component implements HoverParent {
 		if (!target || !this.host.isLive()) return;
 		this.el.toggleClass("is-plain", !this.plugin.settings.highlightMatches);
 
-		const { excludedFolders, includePropertyLinks, includeTitleMatches } = this.plugin.settings;
+		const { includePropertyLinks, includeTitleMatches } = this.plugin.settings;
+		const excluded = this.plugin.exclusions();
 		const sources = findBacklinkSources(this.app, target, {
-			excludedFolders,
+			excluded,
 			includePropertyLinks,
 			includeTitleMatches,
 		});
@@ -150,7 +151,7 @@ export class BacklinksPanel extends Component implements HoverParent {
 		this.createdUnit = period?.unit ?? "day";
 		this.createdTitleEl.setText(this.createdUnit === "week" ? "Created this week" : "Created on this day");
 		this.createdSources = period
-			? findCreatedIn(this.app, target, period.range, this.plugin.settings.createdProperty.trim(), excludedFolders)
+			? findCreatedIn(this.app, target, period.range, this.plugin.settings.createdProperty.trim(), excluded)
 			: [];
 		this.startUnlinkedScan(target);
 		this.render();
@@ -159,9 +160,9 @@ export class BacklinksPanel extends Component implements HoverParent {
 	/** Re-checks one note for unlinked mentions after it changed or was created. */
 	async recheckUnlinked(file: TFile) {
 		const target = this.target;
-		const { showUnlinkedMentions, excludedFolders } = this.plugin.settings;
+		const { showUnlinkedMentions } = this.plugin.settings;
 		if (!target || !showUnlinkedMentions || file === target || file.extension !== "md") return;
-		const source = isExcluded(file.path, excludedFolders) ? null : await findUnlinked(this.app, file, target);
+		const source = isExcluded(file.path, this.plugin.exclusions()) ? null : await findUnlinked(this.app, file, target);
 		if (target !== this.target) return;
 		if (source) this.unlinkedSources.set(file.path, source);
 		else if (!this.unlinkedSources.delete(file.path)) return;
@@ -174,8 +175,12 @@ export class BacklinksPanel extends Component implements HoverParent {
 	}
 
 	private startUnlinkedScan(target: TFile) {
-		const { showUnlinkedMentions, excludedFolders } = this.plugin.settings;
-		const key = showUnlinkedMentions ? [target.path, target.basename, ...excludedFolders].join("\n") : "";
+		const { showUnlinkedMentions } = this.plugin.settings;
+		const excluded = this.plugin.exclusions();
+		// Paths can't contain a newline, so it separates the parts; "|" marks where the notes start.
+		const key = showUnlinkedMentions
+			? [target.path, target.basename, ...excluded.folders, "|", ...excluded.notes].join("\n")
+			: "";
 		if (key === this.scanKey) return;
 		this.scanKey = key;
 		const token = ++this.scanToken;
@@ -184,7 +189,7 @@ export class BacklinksPanel extends Component implements HoverParent {
 		void scanUnlinked(
 			this.app,
 			target,
-			excludedFolders,
+			excluded,
 			(found) => {
 				for (const source of found) this.unlinkedSources.set(source.file.path, source);
 				if (found.length > 0) this.render();

@@ -1,13 +1,21 @@
 import {
+	AbstractInputSuggest,
 	normalizePath,
+	prepareFuzzySearch,
 	PluginSettingTab,
+	renderResults,
+	setIcon,
 	Setting,
+	TFile,
+	TFolder,
 	type App,
+	type SearchResult,
 	type SettingDefinition,
 	type SettingDefinitionItem,
 } from "obsidian";
 import type BetterBacklinksPlugin from "./main";
 import type { BetterBacklinksSettings } from "./settings";
+import { isExcluded, type Exclusions } from "./exclusions";
 import { DEFAULT_WEEKLY_FORMAT } from "./periodic-notes";
 import { isSortOrder, SORT_ORDERS } from "./sort";
 
@@ -84,9 +92,17 @@ export class BetterBacklinksSettingTab extends PluginSettingTab {
 				control: { type: "toggle", key: "combineGroups" },
 			},
 			{
-				name: "Excluded folders",
-				desc: "Notes in these folders never appear as backlinks, for example your templates folder. One folder per line.",
-				control: { type: "textarea", key: "excludedFolders", placeholder: "Templates" },
+				type: "group",
+				heading: "Excluded folders and notes",
+				items: [
+					{
+						name: "Exclude a folder or note",
+						desc: "Excluded folders and notes never appear in the backlinks section or sidebar, in any group. Excluding a folder covers every note inside it, including in subfolders. Start typing to pick a folder or note from your vault.",
+						aliases: ["excluded folders", "excluded notes", "ignore", "hide"],
+						render: (setting) => this.renderExclusionInput(setting),
+					},
+					...this.exclusionEntries(),
+				],
 			},
 			{
 				type: "group",
@@ -153,21 +169,91 @@ export class BetterBacklinksSettingTab extends PluginSettingTab {
 	}
 
 	override getControlValue(key: string): unknown {
-		const value = this.plugin.settings[key as Key];
-		return Array.isArray(value) ? value.join("\n") : value;
+		return this.plugin.settings[key as Key];
+	}
+
+	/** Set when an entry was just added, so the redrawn input gets focus back for the next one. */
+	private refocusExclusionInput = false;
+
+	/** A text box that suggests the vault's folders and notes as you type; picking one excludes it. */
+	private renderExclusionInput(setting: Setting): () => void {
+		let suggest: ExclusionSuggest | null = null;
+		setting.addText((text) => {
+			text.setPlaceholder("Folder or note");
+			suggest = new ExclusionSuggest(this.app, text.inputEl, () => this.plugin.exclusions());
+			suggest.onSelect((item) => {
+				suggest?.close();
+				text.setValue("");
+				void this.addExclusion(item);
+			});
+			if (this.refocusExclusionInput) {
+				this.refocusExclusionInput = false;
+				window.setTimeout(() => text.inputEl.focus(), 0);
+			}
+		});
+		return () => suggest?.close();
+	}
+
+	private async addExclusion(item: TFolder | TFile) {
+		const key = item instanceof TFolder ? "excludedFolders" : "excludedNotes";
+		const path = normalizePath(item.path);
+		if (this.plugin.settings[key].includes(path)) return;
+		this.plugin.settings[key] = [...this.plugin.settings[key], path];
+		this.refocusExclusionInput = true;
+		await this.saveExclusions();
+	}
+
+	/**
+	 * Every excluded folder, then every excluded note, each with a button to
+	 * remove it. Entries that no longer exist are labelled, so they can be
+	 * told apart and removed.
+	 */
+	private exclusionEntries(): SettingDefinition<Key>[] {
+		const { vault } = this.app;
+		const entry = (key: "excludedFolders" | "excludedNotes", path: string, name: string, desc: string) => ({
+			name,
+			desc,
+			render: (setting: Setting) => {
+				setting.addExtraButton((button) =>
+					button
+						.setIcon("x")
+						.setTooltip("Remove")
+						.onClick(() => {
+							this.plugin.settings[key] = this.plugin.settings[key].filter((p) => p !== path);
+							void this.saveExclusions();
+						}),
+				);
+			},
+		});
+		return [
+			...this.plugin.settings.excludedFolders.map((path) =>
+				entry(
+					"excludedFolders",
+					path,
+					path,
+					vault.getFolderByPath(path) ? "Folder, including everything inside it" : "Folder not found in this vault",
+				),
+			),
+			...this.plugin.settings.excludedNotes.map((path) =>
+				entry(
+					"excludedNotes",
+					path,
+					path.replace(/\.md$/, ""),
+					vault.getFileByPath(path) ? "Note" : "Note not found in this vault",
+				),
+			),
+		];
+	}
+
+	private async saveExclusions() {
+		await this.plugin.saveSettings();
+		this.refresh();
 	}
 
 	/** Writes through the plugin, which saves settings alongside its other stored state. */
 	override async setControlValue(key: string, value: unknown): Promise<void> {
 		const settings = this.plugin.settings;
 		switch (key as Key) {
-			case "excludedFolders":
-				settings.excludedFolders = String(value)
-					.split("\n")
-					.map((line) => line.trim())
-					.filter(Boolean)
-					.map((folder) => normalizePath(folder));
-				break;
 			case "dailyNoteFormat":
 			case "weeklyNoteFormat":
 			case "createdProperty":
@@ -198,8 +284,20 @@ export class BetterBacklinksSettingTab extends PluginSettingTab {
 		await this.plugin.saveSettings();
 	}
 
+	/** Redraws the tab if it's showing, so its lists and placeholders show current values. */
+	refresh() {
+		// Obsidian 1.13+ caches the declarative settings; update() reads them again.
+		const tab = this as { update?: () => void };
+		if (typeof tab.update === "function") tab.update();
+		else if (this.containerEl.isConnected) this.draw();
+	}
+
 	/** Fallback for Obsidian before 1.13, rendering the same definitions imperatively. */
 	override display() {
+		this.draw();
+	}
+
+	private draw() {
 		const { containerEl } = this;
 		containerEl.empty();
 		for (const item of this.getSettingDefinitions()) {
@@ -214,7 +312,19 @@ export class BetterBacklinksSettingTab extends PluginSettingTab {
 
 	private renderControl(definition: SettingDefinition<Key>) {
 		const { containerEl } = this;
-		if (!("control" in definition) || !definition.control) return;
+		if ("render" in definition && definition.render) {
+			const setting = new Setting(containerEl).setName(definition.name);
+			if (typeof definition.desc === "string") setting.setDesc(definition.desc);
+			// Only Obsidian 1.13+ has setting groups, and these rows don't use one.
+			definition.render(setting, undefined as never);
+			return;
+		}
+		if (!("control" in definition) || !definition.control) {
+			// A row with only a name and description.
+			const setting = new Setting(containerEl).setName(definition.name);
+			if (typeof definition.desc === "string") setting.setDesc(definition.desc);
+			return;
+		}
 		const { control } = definition;
 		const setting = new Setting(containerEl).setName(definition.name);
 		if (typeof definition.desc === "string") setting.setDesc(definition.desc);
@@ -254,4 +364,62 @@ export class BetterBacklinksSettingTab extends PluginSettingTab {
 				break;
 		}
 	}
+}
+
+/**
+ * Suggests folders and notes matching what's typed, best match first. Leaves
+ * out ones already excluded, including notes and folders inside an excluded
+ * folder.
+ */
+class ExclusionSuggest extends AbstractInputSuggest<TFolder | TFile> {
+	constructor(
+		app: App,
+		inputEl: HTMLInputElement,
+		private readonly exclusions: () => Exclusions,
+	) {
+		super(app, inputEl);
+	}
+
+	protected getSuggestions(query: string): (TFolder | TFile)[] {
+		const excluded = this.exclusions();
+		const { vault } = this.app;
+		const candidates = [
+			...vault.getAllFolders(false).filter(
+				(folder) => !excluded.folders.includes(folder.path) && !isExcluded(folder.path, excluded),
+			),
+			...vault.getMarkdownFiles().filter((file) => !isExcluded(file.path, excluded)),
+		];
+		const search = prepareFuzzySearch(query.trim());
+		const scored: { item: TFolder | TFile; score: number }[] = [];
+		for (const item of candidates) {
+			const result = query.trim() ? search(label(item)) : { score: 0, matches: [] };
+			if (result) scored.push({ item, score: result.score });
+		}
+		// Higher scores are better matches; ties go folders first, then by path.
+		return scored
+			.sort(
+				(a, b) =>
+					b.score - a.score ||
+					Number(a.item instanceof TFile) - Number(b.item instanceof TFile) ||
+					a.item.path.localeCompare(b.item.path),
+			)
+			.map(({ item }) => item);
+	}
+
+	renderSuggestion(item: TFolder | TFile, el: HTMLElement) {
+		const text = label(item);
+		el.addClass("mod-complex");
+		const titleEl = el.createDiv({ cls: "suggestion-content" }).createDiv({ cls: "suggestion-title" });
+		const result: SearchResult | null = prepareFuzzySearch(this.getValue().trim())(text);
+		if (result) renderResults(titleEl, text, result);
+		else titleEl.setText(text);
+		const flair = el.createDiv({ cls: "suggestion-aux" }).createSpan({ cls: "suggestion-flair" });
+		setIcon(flair, item instanceof TFolder ? "folder" : "file-text");
+		flair.setAttribute("aria-label", item instanceof TFolder ? "Folder" : "Note");
+	}
+}
+
+/** How a folder or note is shown: its path, without .md for notes. */
+function label(item: TFolder | TFile): string {
+	return item instanceof TFile ? item.path.replace(/\.md$/, "") : item.path;
 }

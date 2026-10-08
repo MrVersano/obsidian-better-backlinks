@@ -19,7 +19,10 @@ export interface BetterBacklinksSettings {
 	showUnlinkedMentions: boolean;
 	/** Show backlinks, created-in-period notes and unlinked mentions as one list, one card per note. */
 	combineGroups: boolean;
+	/** Notes in these folders, at any depth, never appear in any group. */
 	excludedFolders: string[];
+	/** Paths of notes that never appear in any group. */
+	excludedNotes: string[];
 	/** Daily notes: show notes created on the day a daily note is for. */
 	showCreatedOnDay: boolean;
 	/** Daily note date format; empty uses Obsidian's Daily notes setting. */
@@ -48,6 +51,7 @@ export const DEFAULT_SETTINGS: BetterBacklinksSettings = {
 	showUnlinkedMentions: true,
 	combineGroups: false,
 	excludedFolders: [],
+	excludedNotes: [],
 	showCreatedOnDay: false,
 	dailyNoteFormat: "",
 	dailyNoteFolder: "",

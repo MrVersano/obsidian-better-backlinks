@@ -109,7 +109,10 @@ Better Backlinks works on desktop and mobile and needs Obsidian 1.7.2 or later.
 | Include title matches | On | Shows notes whose title contains this note's name, even without a link. |
 | Show unlinked mentions | On | Lists notes that mention this note's name as plain text, with buttons to link them. |
 | Show everything in one list | Off | Combines backlinks, notes created on the day or week, and unlinked mentions into one list, with one card per note. |
-| Excluded folders | None | Notes in these folders never appear, for example `Templates`. One folder per line. |
+
+**Excluding folders and notes**
+
+Type in **Exclude a folder or note** and pick a match from the suggestions to keep it out of every group in the backlinks section and sidebar. Excluding a folder covers every note inside it, including in subfolders. Everything excluded is listed under **Excluded folders and notes**, each with a delete button to remove it. Entries follow their folder or note when it's renamed or moved. An entry whose folder or note no longer exists is marked as not found, so you can remove it.
 
 **Creation dates**
 

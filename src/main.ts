@@ -1,5 +1,6 @@
 import { debounce, MarkdownView, normalizePath, Notice, Plugin, TFile } from "obsidian";
 import { obsidianMoment } from "./backlink-index";
+import { renameInList, type Exclusions } from "./exclusions";
 import {
 	DEFAULT_DAILY_FORMAT,
 	DEFAULT_WEEKLY_FORMAT,
@@ -109,6 +110,7 @@ export default class BetterBacklinksPlugin extends Plugin {
 			this.registerEvent(
 				vault.on("rename", (file, oldPath) => {
 					if (file instanceof TFile) this.renameSavedState(oldPath, file.path);
+					this.renameExclusions(oldPath, file.path);
 					for (const panel of this.panels()) {
 						panel.forgetUnlinked(oldPath);
 						if (file instanceof TFile) void panel.recheckUnlinked(file);
@@ -129,6 +131,11 @@ export default class BetterBacklinksPlugin extends Plugin {
 		await this.persist();
 		for (const section of this.sections.values()) section.rerender();
 		for (const view of this.sidebarViews()) view.rerender();
+	}
+
+	/** The folders and notes kept out of every group. */
+	exclusions(): Exclusions {
+		return { folders: this.settings.excludedFolders, notes: this.settings.excludedNotes };
 	}
 
 	/** The order for cards under `target`: its own if one was chosen, else the default. */
@@ -226,10 +233,8 @@ export default class BetterBacklinksPlugin extends Plugin {
 		this.coreDailyNotes = daily;
 		this.periodicNotesWeekly = weekly;
 		for (const panel of this.panels()) panel.refresh();
-		// Obsidian 1.13+ caches the declarative settings, whose placeholders show
-		// these values; ask it to read them again. Older versions redraw each time.
-		const tab = this.settingTab as { update?: () => void } | null;
-		if (typeof tab?.update === "function") tab.update();
+		// The settings' placeholders show these values.
+		this.settingTab?.refresh();
 	}
 
 	/** Parses a JSON file in the vault's config folder; null if missing or unreadable. */
@@ -350,6 +355,17 @@ export default class BetterBacklinksPlugin extends Plugin {
 			changed = true;
 		}
 		if (changed) this.saveSoon();
+	}
+
+	/** Keeps excluded folders and notes excluded when they're renamed or moved. */
+	private renameExclusions(oldPath: string, newPath: string) {
+		const folders = renameInList(this.settings.excludedFolders, oldPath, newPath);
+		const notes = renameInList(this.settings.excludedNotes, oldPath, newPath);
+		if (!folders && !notes) return;
+		if (folders) this.settings.excludedFolders = folders;
+		if (notes) this.settings.excludedNotes = notes;
+		this.saveSoon();
+		this.settingTab?.refresh();
 	}
 
 	private showCoreNotice() {
