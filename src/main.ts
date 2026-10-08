@@ -1,5 +1,7 @@
-import { debounce, MarkdownView, normalizePath, Notice, Plugin, TFile } from "obsidian";
+import { debounce, MarkdownView, normalizePath, Plugin, TFile } from "obsidian";
 import { obsidianMoment } from "./backlink-index";
+import { coreBacklinksInDocument } from "./core-backlinks";
+import { CoreBacklinksModal } from "./core-notice";
 import { renameInList, type Exclusions } from "./exclusions";
 import {
 	DEFAULT_DAILY_FORMAT,
@@ -24,7 +26,7 @@ interface PluginData {
 	collapsed: Record<string, boolean>;
 	/** Sort order chosen for a note from its sort menu, by note path; absent means the default. */
 	sortOrders: Record<string, SortOrder>;
-	coreNoticeShown: boolean;
+	coreBacklinksChecked: boolean;
 }
 
 // Paths can't contain a newline, so it safely separates the parts of a key:
@@ -35,7 +37,7 @@ export default class BetterBacklinksPlugin extends Plugin {
 	override settings: BetterBacklinksSettings = { ...DEFAULT_SETTINGS };
 	private collapsed: Record<string, boolean> = {};
 	private sortOrders: Record<string, SortOrder> = {};
-	private coreNoticeShown = false;
+	private coreBacklinksChecked = false;
 	private readonly sections = new Map<MarkdownView, BacklinksSection>();
 	/** Format and folder from Obsidian's core Daily notes plugin, read from its settings file. */
 	coreDailyNotes: PeriodicNoteConfig = { format: DEFAULT_DAILY_FORMAT, folder: "" };
@@ -59,7 +61,7 @@ export default class BetterBacklinksPlugin extends Plugin {
 		this.sortOrders = Object.fromEntries(
 			Object.entries(data.sortOrders ?? {}).filter((entry): entry is [string, SortOrder] => isSortOrder(entry[1])),
 		);
-		this.coreNoticeShown = data.coreNoticeShown ?? false;
+		this.coreBacklinksChecked = data.coreBacklinksChecked ?? false;
 
 		this.registerEditorExtension(pulseExtension);
 		this.registerMarkdownPostProcessor((el, ctx) => rememberSection(el, ctx));
@@ -85,7 +87,7 @@ export default class BetterBacklinksPlugin extends Plugin {
 		this.app.workspace.onLayoutReady(() => {
 			this.pruneSavedState();
 			this.syncViews();
-			this.showCoreNotice();
+			void this.showCoreNotice();
 
 			const { workspace, metadataCache, vault } = this.app;
 			this.registerEvent(workspace.on("layout-change", () => this.syncViews()));
@@ -316,7 +318,7 @@ export default class BetterBacklinksPlugin extends Plugin {
 			settings: this.settings,
 			collapsed: this.collapsed,
 			sortOrders: this.sortOrders,
-			coreNoticeShown: this.coreNoticeShown,
+			coreBacklinksChecked: this.coreBacklinksChecked,
 		};
 		await this.saveData(data);
 	}
@@ -368,13 +370,16 @@ export default class BetterBacklinksPlugin extends Plugin {
 		this.settingTab?.refresh();
 	}
 
-	private showCoreNotice() {
-		if (this.coreNoticeShown) return;
-		new Notice(
-			"To avoid seeing backlinks twice, turn off the core backlinks plugin's option to show backlinks at the bottom of notes.",
-			15000,
-		);
-		this.coreNoticeShown = true;
+	/**
+	 * The first time the plugin loads, warns if the core Backlinks plugin also
+	 * shows backlinks at the bottom of notes, since each note would list them twice.
+	 */
+	private async showCoreNotice() {
+		if (this.coreBacklinksChecked) return;
+		this.coreBacklinksChecked = true;
 		void this.persist();
+		const enabledCorePlugins = await this.readConfigJson("core-plugins.json");
+		const options = await this.readConfigJson("backlink.json");
+		if (coreBacklinksInDocument(enabledCorePlugins, options)) new CoreBacklinksModal(this.app).open();
 	}
 }
