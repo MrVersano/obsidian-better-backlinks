@@ -460,3 +460,16 @@
 		display: none;
 	}
 }
+
+.better-backlinks-header .better-backlinks-filter {
+	color: var(--text-faint);
+	--icon-size: var(--icon-s);
+}
+
+.better-backlinks-header .better-backlinks-filter:hover {
+	color: var(--text-muted);
+}
+
+.better-backlinks-header .better-backlinks-filter.is-active {
+	color: var(--interactive-accent);
+}

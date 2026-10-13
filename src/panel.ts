@@ -6,6 +6,7 @@ import {
 	Component,
 	Keymap,
 	MarkdownRenderer,
+	getAllTags,
 	Menu,
 	setIcon,
 	type HoverParent,
@@ -52,6 +53,10 @@ export class BacklinksPanel extends Component implements HoverParent {
 	private readonly countEl: HTMLElement;
 	private readonly toggleAllEl: HTMLElement;
 	private readonly sortEl: HTMLElement;
+	private readonly filterEl: HTMLElement;
+	/** Folder and tag filters for the current note; deliberately not persisted. */
+	private filter = { folders: new Set<string>(), tags: new Set<string>() };
+	private filterPool: BacklinkSource[] = [];
 	private readonly cardsEl: HTMLElement;
 	private readonly cards = new Map<string, Card>();
 	private readonly tasksGroupEl: HTMLElement;
@@ -100,6 +105,11 @@ export class BacklinksPanel extends Component implements HoverParent {
 		this.countEl = headerEl.createDiv({ cls: "better-backlinks-count" });
 		this.sortEl = headerEl.createDiv({ cls: "better-backlinks-sort clickable-icon", attr: { role: "button", tabindex: "0" } });
 		setIcon(this.sortEl, "arrow-up-narrow-wide");
+		this.filterEl = headerEl.createDiv({
+			cls: "better-backlinks-filter clickable-icon",
+			attr: { role: "button", tabindex: "0", "aria-label": "Filter by folder or tag" },
+		});
+		setIcon(this.filterEl, "filter");
 		this.toggleAllEl = headerEl.createEl("button", { cls: "better-backlinks-toggle-all" });
 		this.cardsEl = panelEl.createDiv({ cls: "better-backlinks-cards" });
 		this.createdGroupEl = panelEl.createDiv({ cls: "better-backlinks-group" });
@@ -129,6 +139,13 @@ export class BacklinksPanel extends Component implements HoverParent {
 			const rect = this.sortEl.getBoundingClientRect();
 			this.showSortMenu(null, { x: rect.left, y: rect.bottom });
 		});
+		this.registerDomEvent(this.filterEl, "click", (evt) => this.showFilterMenu(evt));
+		this.registerDomEvent(this.filterEl, "keydown", (evt) => {
+			if (evt.key !== "Enter" && evt.key !== " ") return;
+			evt.preventDefault();
+			const rect = this.filterEl.getBoundingClientRect();
+			this.showFilterMenu(null, { x: rect.left, y: rect.bottom });
+		});
 		this.registerDomEvent(this.el, "click", (evt) => this.onClick(evt));
 		this.registerDomEvent(this.el, "mouseover", (evt) => this.onHover(evt));
 	}
@@ -143,6 +160,7 @@ export class BacklinksPanel extends Component implements HoverParent {
 	/** Points the panel at a note (or none); a different note starts afresh. */
 	setTarget(file: TFile | null) {
 		if (file === this.target) return;
+		this.filter = { folders: new Set(), tags: new Set() };
 		this.clearCards();
 		this.target = file;
 		this.linkedSources = [];
@@ -233,18 +251,25 @@ export class BacklinksPanel extends Component implements HoverParent {
 		const target = this.target;
 		if (!target || !this.host.isLive()) return;
 		const compare = compareBy(this.plugin.getSort(target.path));
-		const linked = [...this.linkedSources].sort(compare);
-		const unlinked = [...this.unlinkedSources.values()].sort(compare);
-		const created = [...this.createdSources].sort(compare);
-		const tasks = [...this.taskSources].sort(compare);
+		const allLinked = [...this.linkedSources].sort(compare);
+		const allUnlinked = [...this.unlinkedSources.values()].sort(compare);
+		const allCreated = [...this.createdSources].sort(compare);
+		const allTasks = [...this.taskSources].sort(compare);
 		this.sortEl.setAttr("aria-label", `Sort: ${sortLabel(this.plugin.getSort(target.path))}`);
 
-		const shown = linked.length > 0 || unlinked.length > 0 || created.length > 0 || tasks.length > 0;
+		const shown = allLinked.length > 0 || allUnlinked.length > 0 || allCreated.length > 0 || allTasks.length > 0;
 		if (!shown) {
 			this.clearCards();
 			this.host.onRender(false);
 			return;
 		}
+		this.filterPool = [...allLinked, ...allUnlinked, ...allCreated, ...allTasks];
+		this.filterEl.toggleClass("is-active", this.filter.folders.size + this.filter.tags.size > 0);
+		const passes = (list: BacklinkSource[]) => list.filter((source) => this.passesFilter(source.file));
+		const linked = passes(allLinked);
+		const unlinked = passes(allUnlinked);
+		const created = passes(allCreated);
+		const tasks = passes(allTasks);
 		const { expandUpTo } = this.plugin.settings;
 
 		this.tasksGroupEl.toggle(tasks.length > 0);
@@ -349,6 +374,63 @@ export class BacklinksPanel extends Component implements HoverParent {
 	/** Whether cards show their created date rather than their modified date. */
 	get showsCreated(): boolean {
 		return this.target !== null && this.plugin.getSort(this.target.path).startsWith("created");
+	}
+
+	private fileTags(file: TFile): string[] {
+		const cache = this.app.metadataCache.getFileCache(file);
+		return cache ? (getAllTags(cache) ?? []) : [];
+	}
+
+	private passesFilter(file: TFile): boolean {
+		const { folders, tags } = this.filter;
+		if (folders.size > 0) {
+			const parent = file.parent?.path ?? "/";
+			if (![...folders].some((f) => parent === f || (f !== "/" && parent.startsWith(`${f}/`)))) return false;
+		}
+		if (tags.size > 0) {
+			const own = this.fileTags(file);
+			if (!own.some((t) => [...tags].some((wanted) => t === wanted || t.startsWith(`${wanted}/`)))) return false;
+		}
+		return true;
+	}
+
+	private showFilterMenu(evt: MouseEvent | null, position?: { x: number; y: number }) {
+		const folders = new Set<string>(this.filter.folders);
+		const tags = new Set<string>(this.filter.tags);
+		for (const { file } of this.filterPool) {
+			folders.add(file.parent?.path ?? "/");
+			for (const tag of this.fileTags(file)) tags.add(tag);
+		}
+		const menu = new Menu();
+		const addOption = (value: string, icon: string, selected: Set<string>) =>
+			menu.addItem((item) =>
+				item
+					.setTitle(value)
+					.setIcon(icon)
+					.setChecked(selected.has(value))
+					.onClick(() => {
+						if (!selected.delete(value)) selected.add(value);
+						this.render();
+					}),
+			);
+		const byName = (a: string, b: string) => a.localeCompare(b);
+		for (const folder of [...folders].sort(byName)) addOption(folder, "folder", this.filter.folders);
+		if (folders.size > 0 && tags.size > 0) menu.addSeparator();
+		for (const tag of [...tags].sort(byName)) addOption(tag, "tag", this.filter.tags);
+		if (this.filter.folders.size + this.filter.tags.size > 0) {
+			menu.addSeparator();
+			menu.addItem((item) =>
+				item
+					.setTitle("Clear filters")
+					.setIcon("x")
+					.onClick(() => {
+						this.filter = { folders: new Set(), tags: new Set() };
+						this.render();
+					}),
+			);
+		}
+		if (evt) menu.showAtMouseEvent(evt);
+		else if (position) menu.showAtPosition(position);
 	}
 
 	private showSortMenu(evt: MouseEvent | null, position?: { x: number; y: number }) {
