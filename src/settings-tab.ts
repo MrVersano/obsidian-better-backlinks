@@ -72,6 +72,17 @@ export class BetterBacklinksSettingTab extends PluginSettingTab {
 				control: { type: "toggle", key: "showInReadingView" },
 			},
 			{
+				name: "Show heading path",
+				desc: "Show the headings a mention sits under, like a breadcrumb, above its excerpt.",
+				aliases: ["breadcrumb", "section"],
+				control: { type: "toggle", key: "showHeadingPath" },
+			},
+			{
+				name: "Make heading path clickable",
+				desc: "Click a heading in the heading path to open the note at that heading. Ctrl/Cmd-click opens it in a new tab.",
+				control: { type: "toggle", key: "headingPathClickable" },
+			},
+			{
 				name: "Include links in properties",
 				desc: "Count links in a note's properties as backlinks. They appear as a row at the top of the card.",
 				control: { type: "toggle", key: "includePropertyLinks" },

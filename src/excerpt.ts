@@ -12,6 +12,12 @@ export interface Mention {
 	displayText: string;
 }
 
+export interface HeadingRef {
+	text: string;
+	/** Source line of the heading. */
+	line: number;
+}
+
 export interface Excerpt {
 	/** Markdown to render: the block the mentions sit in. */
 	markdown: string;
@@ -27,6 +33,8 @@ export interface Excerpt {
 	anchors: (Mention | null)[];
 	/** Source lines of the task list items in the excerpt, in document order. */
 	taskLines: number[];
+	/** The headings the block sits under, outermost first; empty at the top of the note. */
+	headingPath: HeadingRef[];
 	/** First and last source line of the block. */
 	startLine: number;
 	endLine: number;
@@ -210,6 +218,7 @@ class DocStructure {
 			mentions: block.mentions,
 			anchors,
 			taskLines,
+			headingPath: this.headingPathAt(block.start),
 			startLine: block.start,
 			endLine: block.end,
 		};
@@ -269,6 +278,17 @@ class DocStructure {
 		return this.cache.sections?.find(
 			(s) => s.position.start.line <= line && line <= s.position.end.line,
 		);
+	}
+
+	/** The chain of headings that enclose `line`, outermost first; a heading on `line` itself is not included. */
+	private headingPathAt(line: number): HeadingRef[] {
+		const path: HeadingCache[] = [];
+		for (const heading of this.headings) {
+			if (heading.position.start.line >= line) break;
+			while (path.length > 0 && (path[path.length - 1]?.level ?? 0) >= heading.level) path.pop();
+			path.push(heading);
+		}
+		return path.map((h) => ({ text: h.heading, line: h.position.start.line }));
 	}
 
 	/** The heading plus everything until the next heading of the same or higher level. */
@@ -400,6 +420,7 @@ export function noteStartExcerpt(
 			.filter((item) => item.task !== undefined && item.position.start.line >= start && item.position.start.line <= end)
 			.map((item) => item.position.start.line)
 			.sort((a, b) => a - b),
+		headingPath: [],
 		startLine: start,
 		endLine: end,
 	};

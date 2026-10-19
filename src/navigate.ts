@@ -56,6 +56,18 @@ export async function openMention(app: App, source: BacklinkSource, target: TFil
 	window.setTimeout(() => el.removeClass("better-backlinks-pulse-block"), PULSE_MS);
 }
 
+/** Opens the source note with the cursor on a heading. */
+export async function openHeading(app: App, file: TFile, line: number, evt: MouseEvent) {
+	const leaf = app.workspace.getLeaf(Keymap.isModEvent(evt));
+	await leaf.openFile(file, { active: true, eState: { line } });
+	const view = leaf.view;
+	if (!(view instanceof MarkdownView) || view.file?.path !== file.path || view.getMode() !== "source") return;
+	const pos = { line, ch: 0 };
+	view.editor.setCursor(pos);
+	view.editor.scrollIntoView({ from: pos, to: pos }, true);
+	view.editor.focus();
+}
+
 /**
  * Opens the source note and pulses the property that links here. If the note
  * hides its properties (Obsidian's "Properties in document" setting), it just opens.
