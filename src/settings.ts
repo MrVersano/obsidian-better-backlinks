@@ -11,6 +11,10 @@ export interface BetterBacklinksSettings {
 	/** Highlight links to this note, and the matching part of title-match titles. */
 	highlightMatches: boolean;
 	showInReadingView: boolean;
+	/** Show the headings a mention sits under, as a breadcrumb above its excerpt. */
+	showHeadingPath: boolean;
+	/** Clicking a heading in the heading path opens the note at that heading. */
+	headingPathClickable: boolean;
 	/** Count links in a source note's properties (frontmatter) as backlinks. */
 	includePropertyLinks: boolean;
 	/** Show notes whose title contains this note's name, even without a link. */
@@ -50,6 +54,8 @@ export const DEFAULT_SETTINGS: BetterBacklinksSettings = {
 	mentionsPerCard: 3,
 	highlightMatches: true,
 	showInReadingView: true,
+	showHeadingPath: true,
+	headingPathClickable: true,
 	includePropertyLinks: true,
 	includeTitleMatches: true,
 	showUnlinkedMentions: true,
